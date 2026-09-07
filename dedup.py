@@ -3,15 +3,29 @@ import sys
 import os
 import time
 from typing import List, Dict, Any
+
+# Garante saída UTF-8 no terminal Windows
+if sys.platform == "win32":
+    if hasattr(sys.stdout, "reconfigure"):
+        try:
+            sys.stdout.reconfigure(encoding="utf-8")
+        except Exception:
+            pass
+    if hasattr(sys.stderr, "reconfigure"):
+        try:
+            sys.stderr.reconfigure(encoding="utf-8")
+        except Exception:
+            pass
+
 from rich.console import Console
 from rich.prompt import Prompt, Confirm
-from rich.progress import Progress, SpinnerColumn, TimeElapsedColumn, BarColumn, TextColumn, TimeRemainingColumn
 
 from scanner import preflight_check, scan_directory, chunked_iterable
 from metadata import get_file_stats, get_partial_hash, batch_get_exif
 from database import Database
 from logger import AuditLogger
 from reporter import generate_reports
+from ui import VerticalProgress
 
 DBS_DIR = "dbs"
 if not os.path.exists(DBS_DIR):
@@ -34,8 +48,8 @@ def run_index(project_name: str, directory: str):
     errors = 0
 
     # Primeira passada rápida para contar os arquivos (Anti-jitter UX)
-    console.print("Fazendo varredura inicial para contagem de arquivos...")
-    file_list = list(scan_directory(directory))
+    with console.status("[cyan]Fazendo varredura inicial para contagem de arquivos...[/cyan]"):
+        file_list = list(scan_directory(directory))
     total_files = len(file_list)
     total_files_scanned = total_files
     
@@ -46,44 +60,51 @@ def run_index(project_name: str, directory: str):
     console.print(f"[bold green]{total_files} arquivos encontrados.[/bold green] Começando extração...")
 
     with Database(db_path) as db:
-        # Progress bar configuration (Universal Pipeline style with absolute ETA handled by TimeRemainingColumn)
-        with Progress(
-            SpinnerColumn(),
-            TextColumn("[progress.description]{task.description}"),
-            BarColumn(),
-            "[progress.percentage]{task.percentage:>3.0f}%",
-            TimeElapsedColumn(),
-            TimeRemainingColumn(),
+        # Exibição vertical customizada com Rich
+        with VerticalProgress(
+            f"Indexando arquivos do projeto '{project_name}'",
+            total=total_files,
+            console=console
         ) as progress:
-            
-            task = progress.add_task("[cyan]Indexando arquivos...", total=total_files)
             
             # Processa em lotes de 100 para o exiftool (External Tool Batching)
             for batch in chunked_iterable(file_list, 100):
                 # Filtra os que já estão no banco e não mudaram
-                # Isso é feito um a um rápido para poupar chamada do exiftool
                 to_process = []
                 for filepath in batch:
+                    progress.update(current_file=filepath)
                     try:
                         size, mtime = get_file_stats(filepath)
                         if db.file_exists(filepath, size, mtime):
                             skipped += 1
-                            progress.advance(task)
+                            progress.update(
+                                advance=1,
+                                current_file=filepath,
+                                extra_info=f"[green]{processed} novos[/green] | [yellow]{skipped} mantidos[/yellow] | [red]{errors} erros[/red]"
+                            )
                         else:
                             to_process.append((filepath, size, mtime))
-                    except Exception as e:
+                    except Exception:
                         errors += 1
-                        progress.advance(task)
+                        progress.update(
+                            advance=1,
+                            current_file=filepath,
+                            extra_info=f"[green]{processed} novos[/green] | [yellow]{skipped} mantidos[/yellow] | [red]{errors} erros[/red]"
+                        )
                         
                 if not to_process:
                     continue
                     
                 # Chama exiftool em batch
                 paths_to_process = [item[0] for item in to_process]
+                progress.update(
+                    current_file=f"Extraindo metadados EXIF ({len(paths_to_process)} arquivos)..."
+                )
                 exif_data_map = batch_get_exif(paths_to_process)
                 
                 # Inserir no DB
                 for filepath, size, mtime in to_process:
+                    progress.update(current_file=filepath)
                     try:
                         exif = exif_data_map.get(filepath, {})
                         
@@ -94,10 +115,14 @@ def run_index(project_name: str, directory: str):
                         filename = os.path.basename(filepath)
                         db.insert_or_update_file(filepath, filename, size, mtime, p_hash, exif)
                         processed += 1
-                    except Exception as e:
+                    except Exception:
                         errors += 1
                         
-                    progress.advance(task)
+                    progress.update(
+                        advance=1,
+                        current_file=filepath,
+                        extra_info=f"[green]{processed} novos[/green] | [yellow]{skipped} mantidos[/yellow] | [red]{errors} erros[/red]"
+                    )
 
     elapsed = time.time() - start_time
     logger.log_execution("index", total_files_scanned, processed, skipped, errors, elapsed)
@@ -117,7 +142,8 @@ def run_compare(project_name: str, directory: str):
     start_time = time.time()
     duplicates_found = []
     
-    file_list = list(scan_directory(directory))
+    with console.status("[cyan]Fazendo varredura inicial para contagem de arquivos...[/cyan]"):
+        file_list = list(scan_directory(directory))
     total_files = len(file_list)
     
     if total_files == 0:
@@ -127,20 +153,14 @@ def run_compare(project_name: str, directory: str):
     console.print(f"[bold green]{total_files} arquivos encontrados na pasta.[/bold green] Comparando...")
 
     with Database(db_path) as db:
-        with Progress(
-            SpinnerColumn(),
-            TextColumn("[progress.description]{task.description}"),
-            BarColumn(),
-            "[progress.percentage]{task.percentage:>3.0f}%",
-            TimeElapsedColumn(),
-            TimeRemainingColumn(),
+        with VerticalProgress(
+            f"Verificando duplicatas no projeto '{project_name}'",
+            total=total_files,
+            console=console
         ) as progress:
             
-            task = progress.add_task("[cyan]Verificando duplicatas...", total=total_files)
-            
-            # Aqui não chamamos exiftool por enquanto, fazemos a verificação baseada no hash parcial que é rápido 
-            # e seguro suficiente para uma primeira triagem de duplicatas.
             for filepath in file_list:
+                progress.update(current_file=filepath)
                 try:
                     size, _ = get_file_stats(filepath)
                     p_hash = get_partial_hash(filepath)
@@ -156,7 +176,13 @@ def run_compare(project_name: str, directory: str):
                 except Exception:
                     pass
                     
-                progress.advance(task)
+                dup_count = len(duplicates_found)
+                dup_info = (
+                    f"[bold yellow]{dup_count} duplicata(s) encontrada(s)[/bold yellow]"
+                    if dup_count > 0
+                    else "[green]0 duplicatas[/green]"
+                )
+                progress.update(advance=1, current_file=filepath, extra_info=dup_info)
 
     elapsed = time.time() - start_time
     console.print(f"\nVarredura concluída em {elapsed:.1f} segundos.")
