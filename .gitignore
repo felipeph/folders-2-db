@@ -1,0 +1,49 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Virtual Environments
+.venv/
+venv/
+ENV/
+env/
+
+# Data directories & Local databases (CRITICAL: Contains file paths, EXIF data, GPS, etc.)
+dbs/
+*.sqlite
+*.sqlite3
+*.db
+*.sqlite-wal
+*.sqlite-shm
+
+# Execution logs & Audit traces (Contains internal paths and run history)
+logs/
+*.jsonl
+*.log
+
+# Generated reports (HTML Dashboards & JSON exports containing personal media paths)
+reports/
+*_report_*.json
+*_report_*.html
+*.html
+
+# Environment variables & secrets
+.env
+.env.*
+*.secret
+*.pem
+*.key
+
+# Editor / OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+*.tmp
+*.bak
+*.swp

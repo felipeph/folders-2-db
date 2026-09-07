@@ -152,7 +152,8 @@ HTML_TEMPLATE = """
 </html>
 """
 
-def generate_reports(project_name: str, total_analyzed: int, duplicates: list, output_dir: str = "."):
+def generate_reports(project_name: str, total_analyzed: int, duplicates: list, output_dir: str = "reports"):
+    os.makedirs(output_dir, exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     json_path = os.path.join(output_dir, f"{project_name}_report_{timestamp}.json")
     html_path = os.path.join(output_dir, f"{project_name}_report_{timestamp}.html")
