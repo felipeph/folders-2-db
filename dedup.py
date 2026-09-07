@@ -229,6 +229,44 @@ def run_compare_db(project_a: str, project_b: str):
         console.print(f"HTML: [cyan]{html_rep}[/cyan]")
 
 
+def get_existing_projects() -> List[str]:
+    projects = []
+    if os.path.exists(DBS_DIR):
+        for f in os.listdir(DBS_DIR):
+            if f.endswith(".sqlite"):
+                projects.append(f[:-7])
+    return sorted(projects)
+
+def ask_project(prompt_text: str, allow_new: bool = True) -> str:
+    projects = get_existing_projects()
+    if not projects:
+        return Prompt.ask(prompt_text).strip()
+        
+    console.print("\n[cyan]Projetos existentes:[/cyan]")
+    for i, p in enumerate(projects, 1):
+        console.print(f" [bold yellow][{i}][/bold yellow] {p}")
+    
+    if allow_new:
+        console.print(" [bold yellow][N][/bold yellow] Digitar o nome de um NOVO projeto")
+        
+    while True:
+        choice_str = Prompt.ask(prompt_text).strip()
+        if allow_new and choice_str.upper() == 'N':
+            return Prompt.ask("Digite o nome do NOVO projeto").strip()
+            
+        if choice_str.isdigit():
+            idx = int(choice_str)
+            if 1 <= idx <= len(projects):
+                return projects[idx - 1]
+                
+        if choice_str in projects:
+            return choice_str
+        elif allow_new and choice_str and not choice_str.isdigit():
+            return choice_str
+            
+        console.print("[red]Escolha inválida. Digite o número correspondente, o nome do projeto, ou 'N' para criar um novo.[/red]")
+
+
 def interactive_mode():
     console.print("[bold magenta]Bem vindo ao Dedup CLI Interativo[/bold magenta]")
     console.print("[dim]Esta ferramenta permite criar um banco de dados de mídia (index) e buscar duplicatas (compare).[/dim]\n")
@@ -246,7 +284,7 @@ def interactive_mode():
         
     if action in ["1", "2"]:
         console.print("\n[cyan]💡 DICA:[/cyan] Projetos funcionam como 'agrupadores'. Se você indexar múltiplas pastas ou HDs diferentes \nusando o [bold]mesmo nome de projeto[/bold], os dados serão somados no mesmo banco de dados SQLite.")
-        project = Prompt.ask("Digite o nome do projeto do banco (ex: meu_acervo_principal)")
+        project = ask_project("Escolha o projeto", allow_new=(action == "1"))
         
         if action == "1":
             directory = Prompt.ask("Digite o caminho da pasta/HD para INDEXAR (adicionar ao banco)")
@@ -255,8 +293,8 @@ def interactive_mode():
             directory = Prompt.ask("Digite o caminho da pasta nova para COMPARAR (procurar duplicatas)")
             run_compare(project, directory)
     elif action == "3":
-        project_a = Prompt.ask("Digite o nome do [bold]PRIMEIRO[/bold] projeto (ex: hdd_antigo)")
-        project_b = Prompt.ask("Digite o nome do [bold]SEGUNDO[/bold] projeto (ex: hdd_novo)")
+        project_a = ask_project("Escolha o [bold]PRIMEIRO[/bold] projeto", allow_new=False)
+        project_b = ask_project("Escolha o [bold]SEGUNDO[/bold] projeto", allow_new=False)
         run_compare_db(project_a, project_b)
 
 def main():
