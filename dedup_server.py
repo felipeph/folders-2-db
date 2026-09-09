@@ -511,14 +511,17 @@ async def api_delete_batch(request: Request):
     if cand_db:
         cand_db.close()
 
-    logger.log_execution(
-        action="webapp_batch_delete",
-        total_files=len(file_paths),
-        processed=len(deleted_paths),
-        skipped=0,
-        errors=len(errors),
-        elapsed_sec=0.0
-    )
+    try:
+        logger.log_execution(
+            command="webapp_batch_delete",
+            total_input=len(file_paths),
+            processed=len(deleted_paths),
+            skipped=0,
+            errors=len(errors),
+            elapsed_seconds=0.0
+        )
+    except Exception as log_err:
+        print(f"Aviso ao registrar log de auditoria: {log_err}")
 
     CURRENT_SESSION["total_wasted_bytes"] = max(0, CURRENT_SESSION["total_wasted_bytes"] - freed_bytes)
 
