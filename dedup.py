@@ -25,7 +25,10 @@ from metadata import get_file_stats, get_partial_hash, batch_get_exif
 from database import Database
 from logger import AuditLogger
 from reporter import generate_reports
+from db_reporter import generate_report as generate_dashboard
+from dedup_server import start_server as run_dedup_webapp
 from ui import VerticalProgress
+import webbrowser
 
 DBS_DIR = "dbs"
 if not os.path.exists(DBS_DIR):
@@ -193,6 +196,9 @@ def run_compare(project_name: str, directory: str):
         console.print(f"\n[bold green]Relatórios Gerados com Sucesso![/bold green]")
         console.print(f"JSON: [cyan]{json_rep}[/cyan]")
         console.print(f"HTML: [cyan]{html_rep}[/cyan]")
+        
+        if Confirm.ask("\n[bold cyan]Deseja abrir a Central Interativa no navegador para revisar e apagar duplicatas?[/bold cyan]", default=True):
+            run_dedup_webapp(initial_report=os.path.basename(json_rep))
 
 
 def run_compare_db(project_a: str, project_b: str):
@@ -227,6 +233,25 @@ def run_compare_db(project_a: str, project_b: str):
         console.print(f"\n[bold green]Relatórios de Cruzamento Gerados com Sucesso![/bold green]")
         console.print(f"JSON: [cyan]{json_rep}[/cyan]")
         console.print(f"HTML: [cyan]{html_rep}[/cyan]")
+
+        if Confirm.ask("\n[bold cyan]Deseja abrir a Central Interativa no navegador para revisar e apagar duplicatas?[/bold cyan]", default=True):
+            run_dedup_webapp(initial_report=os.path.basename(json_rep))
+
+
+def run_dashboard(project_name: str):
+    console.print(f"[bold blue]Gerando Dashboard HTML para o projeto '{project_name}'[/bold blue]")
+    db_path = os.path.join(DBS_DIR, f"{project_name}.sqlite")
+    
+    if not os.path.exists(db_path):
+        console.print(f"[bold red]Erro:[/bold red] O banco de dados '{db_path}' não foi encontrado. Você já indexou o projeto?")
+        return
+
+    result = generate_dashboard(db_path)
+    if result:
+        json_path, html_path = result
+        console.print(f"\n[bold green]Dashboard Gerado com Sucesso![/bold green]")
+        console.print(f"Abrindo no navegador: [cyan]{html_path}[/cyan]")
+        webbrowser.open(f"file://{os.path.abspath(html_path)}")
 
 
 def get_existing_projects() -> List[str]:
@@ -275,11 +300,13 @@ def interactive_mode():
     console.print(" [bold yellow][1][/bold yellow] Indexar HD Externo/Pasta (Construir Banco)")
     console.print(" [bold yellow][2][/bold yellow] Comparar Nova Pasta contra um Banco (Buscar Duplicatas)")
     console.print(" [bold yellow][3][/bold yellow] Comparar DOIS Bancos Diferentes entre si")
-    console.print(" [bold yellow][4][/bold yellow] Sair")
+    console.print(" [bold yellow][4][/bold yellow] Gerar Relatório HTML de um Banco (Dashboard)")
+    console.print(" [bold yellow][5][/bold yellow] Abrir Central de Ação de Duplicatas (WebApp Interativo)")
+    console.print(" [bold yellow][6][/bold yellow] Sair")
     
-    action = Prompt.ask("\nEscolha uma opção", choices=["1", "2", "3", "4"], default="1")
+    action = Prompt.ask("\nEscolha uma opção", choices=["1", "2", "3", "4", "5", "6"], default="1")
     
-    if action == "4":
+    if action == "6":
         sys.exit(0)
         
     if action in ["1", "2"]:
@@ -296,6 +323,22 @@ def interactive_mode():
         project_a = ask_project("Escolha o [bold]PRIMEIRO[/bold] projeto", allow_new=False)
         project_b = ask_project("Escolha o [bold]SEGUNDO[/bold] projeto", allow_new=False)
         run_compare_db(project_a, project_b)
+    elif action == "4":
+        project = ask_project("Escolha o projeto para gerar o relatório", allow_new=False)
+        run_dashboard(project)
+    elif action == "5":
+        reports_dir = "reports"
+        json_reports = [f for f in os.listdir(reports_dir) if f.endswith(".json")] if os.path.exists(reports_dir) else []
+        initial_rep = None
+        if json_reports:
+            console.print("\n[cyan]Relatórios de duplicatas encontrados:[/cyan]")
+            for i, r in enumerate(json_reports, 1):
+                console.print(f" [bold yellow][{i}][/bold yellow] {r}")
+            console.print(" [bold yellow][0][/bold yellow] Abrir WebApp sem relatório inicial (selecionar no navegador)")
+            c = Prompt.ask("Escolha um relatório para abrir", default="1")
+            if c.isdigit() and 1 <= int(c) <= len(json_reports):
+                initial_rep = json_reports[int(c) - 1]
+        run_dedup_webapp(initial_report=initial_rep)
 
 def main():
     parser = argparse.ArgumentParser(description="Ferramenta de indexação e deduplicação de mídias.")
@@ -314,6 +357,10 @@ def main():
     compare_db_parser.add_argument("--proj-a", required=True, help="Nome do primeiro projeto")
     compare_db_parser.add_argument("--proj-b", required=True, help="Nome do segundo projeto")
     
+    webapp_parser = subparsers.add_parser("webapp", help="Inicia a Central Interativa de Ação de Duplicatas (WebApp)")
+    webapp_parser.add_argument("--report", help="Nome ou caminho do relatório JSON inicial")
+    webapp_parser.add_argument("--port", type=int, default=8555, help="Porta HTTP do servidor local (padrão: 8555)")
+
     args = parser.parse_args()
     
     try:
@@ -323,6 +370,8 @@ def main():
             run_compare(args.project, args.directory)
         elif args.command == "compare-db":
             run_compare_db(args.proj_a, args.proj_b)
+        elif args.command == "webapp":
+            run_dedup_webapp(port=args.port, initial_report=args.report)
         elif not args.command:
             interactive_mode()
     except KeyboardInterrupt:

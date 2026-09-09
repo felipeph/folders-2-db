@@ -1,0 +1,1630 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Central de Ação de Duplicatas | Folders-2-DB</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #f8fafc;
+      --card-bg: #ffffff;
+      --card-border: #e2e8f0;
+      --text-main: #0f172a;
+      --text-muted: #64748b;
+      --text-sub: #475569;
+      
+      --primary: #2563eb;
+      --primary-hover: #1d4ed8;
+      --primary-light: #eff6ff;
+      --primary-border: #bfdbfe;
+      
+      --safe-color: #059669;
+      --safe-light: #ecfdf5;
+      --safe-border: #a7f3d0;
+      
+      --cand-color: #dc2626;
+      --cand-light: #fef2f2;
+      --cand-border: #fecaca;
+      
+      --amber-color: #d97706;
+      --amber-light: #fffbeb;
+      --amber-border: #fde68a;
+      
+      --radius: 12px;
+      --shadow-sm: 0 1px 3px rgba(0,0,0,0.05);
+      --shadow-md: 0 4px 12px rgba(0,0,0,0.06);
+      --shadow-lg: 0 10px 25px rgba(0,0,0,0.08);
+      --shadow-float: 0 20px 30px rgba(0,0,0,0.12);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background-color: var(--bg);
+      color: var(--text-main);
+      line-height: 1.5;
+      padding-bottom: 120px;
+    }
+
+    /* Top Navigation Header */
+    header {
+      background: #ffffff;
+      border-bottom: 1px solid var(--card-border);
+      position: sticky;
+      top: 0;
+      z-index: 40;
+      box-shadow: var(--shadow-sm);
+    }
+    .header-container {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 14px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .brand-icon {
+      width: 40px;
+      height: 40px;
+      background: linear-gradient(135deg, #2563eb, #3b82f6);
+      color: white;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      box-shadow: 0 2px 8px rgba(37,99,235,0.25);
+    }
+    .brand-title h1 {
+      font-size: 18px;
+      font-weight: 800;
+      color: #0f172a;
+      letter-spacing: -0.02em;
+    }
+    .brand-title p {
+      font-size: 12px;
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+
+    .header-stats {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .stat-pill {
+      background: var(--bg);
+      border: 1px solid var(--card-border);
+      padding: 6px 14px;
+      border-radius: 30px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      font-weight: 600;
+    }
+    .stat-pill .val {
+      color: var(--primary);
+      font-weight: 800;
+    }
+    .stat-pill.danger .val { color: var(--cand-color); }
+    .stat-pill.success .val { color: var(--safe-color); }
+
+    /* Session & Database Chooser Banner */
+    .session-banner {
+      background: #ffffff;
+      border-bottom: 1px solid var(--card-border);
+      padding: 16px 24px;
+      box-shadow: var(--shadow-sm);
+    }
+    .session-container {
+      max-width: 1400px;
+      margin: 0 auto;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+    .session-tabs {
+      display: flex;
+      gap: 8px;
+      background: #f1f5f9;
+      padding: 4px;
+      border-radius: 10px;
+    }
+    .session-tab {
+      padding: 6px 14px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      background: transparent;
+      color: var(--text-sub);
+      transition: all 0.15s;
+    }
+    .session-tab.active {
+      background: #ffffff;
+      color: var(--primary);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .db-pickers {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .picker-box {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 12px;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 600;
+    }
+    .picker-box.safe {
+      background: var(--safe-light);
+      border: 1px solid var(--safe-border);
+      color: var(--safe-color);
+    }
+    .picker-box.cand {
+      background: var(--cand-light);
+      border: 1px solid var(--cand-border);
+      color: var(--cand-color);
+    }
+    .picker-box select {
+      background: #ffffff;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      padding: 4px 8px;
+      font-size: 13px;
+      font-weight: 600;
+      color: #0f172a;
+      outline: none;
+      cursor: pointer;
+    }
+
+    .btn-swap {
+      background: #ffffff;
+      border: 1px solid #cbd5e1;
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-size: 16px;
+      color: #334155;
+      transition: all 0.2s;
+    }
+    .btn-swap:hover {
+      background: var(--primary-light);
+      border-color: var(--primary);
+      color: var(--primary);
+      transform: rotate(180deg);
+    }
+
+    .btn-primary {
+      background: var(--primary);
+      color: #ffffff;
+      border: none;
+      padding: 8px 18px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.15s;
+    }
+    .btn-primary:hover {
+      background: var(--primary-hover);
+      box-shadow: 0 4px 12px rgba(37,99,235,0.25);
+    }
+
+    /* Main Content */
+    main {
+      max-width: 1400px;
+      margin: 24px auto 0;
+      padding: 0 24px;
+    }
+
+    /* Toolbar for Filtering, Sorting and Quick Selection */
+    .toolbar-card {
+      background: #ffffff;
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius);
+      padding: 16px 20px;
+      margin-bottom: 20px;
+      box-shadow: var(--shadow-sm);
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .toolbar-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+    }
+    .search-box {
+      position: relative;
+      flex: 1;
+      min-width: 260px;
+      max-width: 480px;
+    }
+    .search-box input {
+      width: 100%;
+      padding: 10px 14px 10px 38px;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      font-size: 14px;
+      background: #ffffff;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .search-box input:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(37,99,235,0.1);
+    }
+    .search-icon {
+      position: absolute;
+      left: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: #94a3b8;
+      font-size: 16px;
+    }
+
+    .filter-group {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .filter-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-sub);
+    }
+    .filter-item select {
+      background: #ffffff;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-main);
+      cursor: pointer;
+      outline: none;
+    }
+
+    /* Quick Action Buttons */
+    .quick-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      padding-top: 10px;
+      border-top: 1px solid #f1f5f9;
+    }
+    .quick-label {
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      margin-right: 4px;
+    }
+    .btn-secondary {
+      background: #ffffff;
+      color: #334155;
+      border: 1px solid #cbd5e1;
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      transition: all 0.15s;
+    }
+    .btn-secondary:hover {
+      background: #f8fafc;
+      border-color: #94a3b8;
+      color: #0f172a;
+    }
+    .btn-secondary.active {
+      background: var(--primary-light);
+      border-color: var(--primary);
+      color: var(--primary);
+    }
+
+    /* Comparison Grid & Cards */
+    .comparison-list {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .dup-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-sm);
+      overflow: hidden;
+      transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s;
+    }
+    .dup-card:hover {
+      box-shadow: var(--shadow-md);
+      border-color: #cbd5e1;
+    }
+    .dup-card.selected {
+      border-color: var(--cand-color);
+      box-shadow: 0 0 0 2px rgba(220,38,38,0.2), var(--shadow-md);
+    }
+
+    .card-header {
+      background: #f8fafc;
+      padding: 12px 20px;
+      border-bottom: 1px solid var(--card-border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .card-meta-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .card-id {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      font-weight: 700;
+      color: #64748b;
+      background: #e2e8f0;
+      padding: 3px 8px;
+      border-radius: 4px;
+    }
+    .card-size-badge {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+      font-weight: 800;
+      padding: 4px 10px;
+      border-radius: 6px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .size-huge { background: #fee2e2; color: #dc2626; border: 1px solid #fca5a5; }
+    .size-big { background: #fef3c7; color: #b45309; border: 1px solid #fde68a; }
+    .size-normal { background: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd; }
+
+    .card-type-tag {
+      font-size: 11px;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .tag-video { background: #ede9fe; color: #6d28d9; }
+    .tag-image { background: #e0e7ff; color: #4338ca; }
+    .tag-other { background: #f1f5f9; color: #475569; }
+
+    /* Side-by-Side Split Body */
+    .card-body {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      divide-x: 1px solid var(--card-border);
+    }
+    @media (max-width: 900px) {
+      .card-body { grid-template-columns: 1fr; }
+    }
+
+    .side-pane {
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      position: relative;
+    }
+    .side-pane.safe-side {
+      background: #ffffff;
+      border-right: 1px solid var(--card-border);
+    }
+    .side-pane.cand-side {
+      background: #ffffff;
+    }
+    .dup-card.selected .side-pane.cand-side {
+      background: #fff8f8;
+    }
+
+    .pane-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .pane-badge {
+      font-size: 12px;
+      font-weight: 700;
+      padding: 4px 10px;
+      border-radius: 6px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .pane-badge.safe {
+      background: var(--safe-light);
+      color: var(--safe-color);
+      border: 1px solid var(--safe-border);
+    }
+    .pane-badge.cand {
+      background: var(--cand-light);
+      color: var(--cand-color);
+      border: 1px solid var(--cand-border);
+    }
+
+    /* Candidate Checkbox Box */
+    .checkbox-container {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      user-select: none;
+    }
+    .cand-checkbox {
+      width: 20px;
+      height: 20px;
+      cursor: pointer;
+      accent-color: var(--cand-color);
+    }
+    .checkbox-label {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--cand-color);
+    }
+
+    /* Media Preview Container */
+    .media-preview-box {
+      width: 100%;
+      height: 280px;
+      background: #f1f5f9;
+      border-radius: 8px;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      border: 1px solid #e2e8f0;
+    }
+    .media-preview-box img {
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+      cursor: zoom-in;
+      transition: transform 0.2s;
+    }
+    .media-preview-box img:hover {
+      transform: scale(1.02);
+    }
+    .media-preview-box video {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      background: #000000;
+    }
+
+    /* Sync Video Button */
+    .sync-video-btn {
+      position: absolute;
+      bottom: 10px;
+      right: 10px;
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(4px);
+      color: white;
+      border: none;
+      border-radius: 6px;
+      padding: 6px 10px;
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      z-index: 10;
+    }
+    .sync-video-btn:hover {
+      background: #0f172a;
+    }
+
+    /* File Details */
+    .file-details {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .file-name {
+      font-size: 14px;
+      font-weight: 700;
+      color: #0f172a;
+      word-break: break-all;
+    }
+    .file-path {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      color: #64748b;
+      word-break: break-all;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      padding: 6px 8px;
+      border-radius: 6px;
+      line-height: 1.4;
+    }
+
+    /* Action Buttons (Reveal Explorer, Open App) */
+    .pane-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: auto;
+      flex-wrap: wrap;
+    }
+    .btn-action {
+      background: #ffffff;
+      color: #1e293b;
+      border: 1px solid #cbd5e1;
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.15s;
+    }
+    .btn-action:hover {
+      background: #f1f5f9;
+      border-color: #94a3b8;
+    }
+
+    /* Empty State */
+    .empty-state {
+      background: #ffffff;
+      border: 2px dashed #cbd5e1;
+      border-radius: var(--radius);
+      padding: 60px 20px;
+      text-align: center;
+      color: #64748b;
+    }
+    .empty-state h3 {
+      font-size: 18px;
+      color: #1e293b;
+      margin-bottom: 8px;
+    }
+
+    /* Pagination */
+    .pagination-bar {
+      margin-top: 30px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 16px;
+      background: #ffffff;
+      padding: 14px 20px;
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-sm);
+    }
+    .pagination-info {
+      font-size: 13px;
+      font-weight: 600;
+      color: #64748b;
+    }
+    .pagination-controls {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .page-btn {
+      background: #ffffff;
+      border: 1px solid #cbd5e1;
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      color: #334155;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .page-btn:hover:not(:disabled) {
+      background: #f1f5f9;
+      border-color: #94a3b8;
+    }
+    .page-btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    /* Floating Action Bar (Batch Selection & Delete) */
+    .floating-bar {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%) translateY(120px);
+      background: #0f172a;
+      color: #ffffff;
+      padding: 14px 24px;
+      border-radius: 50px;
+      box-shadow: var(--shadow-float);
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      z-index: 50;
+      transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .floating-bar.show {
+      transform: translateX(-50%) translateY(0);
+    }
+    .floating-info {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 14px;
+      font-weight: 600;
+    }
+    .floating-count {
+      background: var(--cand-color);
+      color: #ffffff;
+      padding: 3px 10px;
+      border-radius: 20px;
+      font-size: 13px;
+      font-weight: 800;
+    }
+    .floating-size {
+      color: #38bdf8;
+      font-weight: 800;
+    }
+    .btn-delete-batch {
+      background: #ef4444;
+      color: #ffffff;
+      border: none;
+      padding: 10px 22px;
+      border-radius: 30px;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.15s;
+      box-shadow: 0 4px 12px rgba(239,68,68,0.35);
+    }
+    .btn-delete-batch:hover {
+      background: #dc2626;
+      transform: scale(1.02);
+    }
+
+    /* Modal Styling */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.6);
+      backdrop-filter: blur(4px);
+      z-index: 60;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .modal-overlay.open {
+      display: flex;
+    }
+    .modal-card {
+      background: #ffffff;
+      border-radius: var(--radius);
+      max-width: 600px;
+      width: 100%;
+      box-shadow: var(--shadow-lg);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      animation: modalPop 0.2s ease-out;
+    }
+    @keyframes modalPop {
+      from { transform: scale(0.95); opacity: 0; }
+      to { transform: scale(1); opacity: 1; }
+    }
+    .modal-header {
+      padding: 20px 24px;
+      border-bottom: 1px solid var(--card-border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .modal-header h3 {
+      font-size: 18px;
+      font-weight: 800;
+      color: #0f172a;
+    }
+    .modal-body {
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      max-height: 450px;
+      overflow-y: auto;
+    }
+    .modal-footer {
+      padding: 16px 24px;
+      background: #f8fafc;
+      border-top: 1px solid var(--card-border);
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 12px;
+    }
+
+    /* Lightbox Modal */
+    .lightbox-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.85);
+      backdrop-filter: blur(6px);
+      z-index: 70;
+      display: none;
+      flex-direction: column;
+      padding: 20px;
+    }
+    .lightbox-overlay.open {
+      display: flex;
+    }
+    .lightbox-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      color: white;
+      padding-bottom: 12px;
+    }
+    .lightbox-content {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      overflow: hidden;
+      align-items: center;
+      justify-content: center;
+    }
+    .lightbox-side {
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 8px;
+      padding: 10px;
+      overflow: hidden;
+    }
+    .lightbox-side img {
+      max-width: 100%;
+      max-height: 85vh;
+      object-fit: contain;
+    }
+    .lightbox-side-title {
+      color: white;
+      font-size: 13px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Header Navigation -->
+  <header>
+    <div class="header-container">
+      <div class="brand">
+        <div class="brand-icon">⚡</div>
+        <div class="brand-title">
+          <h1>Central de Ação de Duplicatas</h1>
+          <p>Folders-2-DB &bull; Resolução &amp; Limpeza Interativa</p>
+        </div>
+      </div>
+
+      <div class="header-stats">
+        <div class="stat-pill">
+          <span>Duplicatas:</span>
+          <span class="val" id="topStatCount">0</span>
+        </div>
+        <div class="stat-pill danger">
+          <span>Desperdiçado:</span>
+          <span class="val" id="topStatSpace">0 B</span>
+        </div>
+        <div class="stat-pill success">
+          <span>Selecionado:</span>
+          <span class="val" id="topStatSelected">0 B (0 itens)</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Session & Database Chooser Banner -->
+  <div class="session-banner">
+    <div class="session-container">
+      <div class="session-tabs">
+        <button class="session-tab active" id="tabLiveDb" onclick="switchTab('live_db')">Cruzar 2 Bancos SQLite</button>
+        <button class="session-tab" id="tabReport" onclick="switchTab('report')">Carregar Relatório Salvo</button>
+      </div>
+
+      <!-- Live DB Pickers -->
+      <div class="db-pickers" id="liveDbSection">
+        <div class="picker-box safe">
+          <span>🛡️ Lado Seguro (Preservar):</span>
+          <select id="selectSafeDb"></select>
+        </div>
+
+        <button class="btn-swap" onclick="swapSides()" title="Inverter Lado Seguro e Lado Candidato">⇄</button>
+
+        <div class="picker-box cand">
+          <span>🗑️ Lado Candidato (Alvo de Limpeza):</span>
+          <select id="selectCandDb"></select>
+        </div>
+
+        <button class="btn-primary" onclick="initLiveDbSession()">
+          <span>Carregar Comparação</span>
+        </button>
+      </div>
+
+      <!-- Saved Report Picker -->
+      <div class="db-pickers" id="reportSection" style="display: none;">
+        <div class="picker-box">
+          <span>Relatório Salvo:</span>
+          <select id="selectReportFile"></select>
+        </div>
+        <button class="btn-primary" onclick="initReportSession()">
+          <span>Abrir Relatório</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Content -->
+  <main>
+    <!-- Toolbar: Search, Filters, Sorting & Quick Actions -->
+    <div class="toolbar-card">
+      <div class="toolbar-row">
+        <div class="search-box">
+          <span class="search-icon">🔍</span>
+          <input type="text" id="searchInput" placeholder="Filtrar por nome de arquivo ou pasta..." oninput="debounceSearch()">
+        </div>
+
+        <div class="filter-group">
+          <div class="filter-item">
+            <span>Ordenar por:</span>
+            <select id="sortSelect" onchange="loadDuplicates(1)">
+              <option value="size_desc" selected>Maior Tamanho Primeiro (Padrão)</option>
+              <option value="size_asc">Menor Tamanho Primeiro</option>
+              <option value="name">Nome do Arquivo (A-Z)</option>
+              <option value="path">Caminho da Pasta</option>
+            </select>
+          </div>
+
+          <div class="filter-item">
+            <span>Tipo:</span>
+            <select id="typeSelect" onchange="loadDuplicates(1)">
+              <option value="all" selected>Todos os Tipos</option>
+              <option value="video">Apenas Vídeos</option>
+              <option value="image">Apenas Imagens</option>
+            </select>
+          </div>
+
+          <div class="filter-item">
+            <span>Tamanho Mínimo:</span>
+            <select id="minSizeSelect" onchange="loadDuplicates(1)">
+              <option value="0" selected>Qualquer tamanho</option>
+              <option value="10">&gt; 10 MB</option>
+              <option value="50">&gt; 50 MB</option>
+              <option value="100">&gt; 100 MB</option>
+              <option value="500">&gt; 500 MB</option>
+              <option value="1024">&gt; 1 GB</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Quick Actions for Selection -->
+      <div class="quick-actions">
+        <span class="quick-label">Ações Rápidas de Seleção:</span>
+        <button class="btn-secondary" onclick="selectPageAll()">☑️ Marcar Todos desta Página</button>
+        <button class="btn-secondary" onclick="selectOver100MB()">🔥 Marcar Todos &gt; 100 MB (Página)</button>
+        <button class="btn-secondary" onclick="invertPageSelection()">🔄 Inverter Seleção</button>
+        <button class="btn-secondary" onclick="clearAllSelection()">❌ Desmarcar Todos</button>
+      </div>
+    </div>
+
+    <!-- Comparison Cards List -->
+    <div class="comparison-list" id="dupsContainer">
+      <!-- Injetado dinamicamente -->
+    </div>
+
+    <!-- Pagination -->
+    <div class="pagination-bar" id="paginationBar" style="display: none;">
+      <div class="pagination-info" id="paginationInfo">Mostrando 0 de 0</div>
+      <div class="pagination-controls">
+        <button class="page-btn" id="btnFirstPage" onclick="changePage(1)">&laquo; Primeira</button>
+        <button class="page-btn" id="btnPrevPage" onclick="changePage(currentPage - 1)">&lsaquo; Anterior</button>
+        <span style="font-size: 13px; font-weight: 700; padding: 0 8px;" id="pageIndicator">Página 1 de 1</span>
+        <button class="page-btn" id="btnNextPage" onclick="changePage(currentPage + 1)">Próxima &rsaquo;</button>
+        <button class="page-btn" id="btnLastPage" onclick="changePage(totalPages)">Última &raquo;</button>
+      </div>
+    </div>
+  </main>
+
+  <!-- Floating Action Bar for Batch Deletion -->
+  <div class="floating-bar" id="floatingBar">
+    <div class="floating-info">
+      <span class="floating-count" id="floatSelectedCount">0 itens</span>
+      <span>Total a liberar: <span class="floating-size" id="floatSelectedSize">0 MB</span></span>
+    </div>
+    <button class="btn-delete-batch" onclick="openDeleteModal()">
+      <span>🗑️ Mover Selecionados para a Lixeira</span>
+    </button>
+  </div>
+
+  <!-- Deletion Confirmation Modal -->
+  <div class="modal-overlay" id="deleteModal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>Confirmar Exclusão Segura</h3>
+        <button onclick="closeDeleteModal()" style="background: none; border: none; font-size: 20px; cursor: pointer;">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 14px; color: #991b1b; font-size: 13px;">
+          <strong>⚠️ Atenção:</strong> Você está prestes a mover <span id="modalCount" style="font-weight: 800;">0</span> arquivos duplicados do lado candidato para a <strong>Lixeira do Windows</strong>.
+          <br><br>
+          Espaço a ser recuperado no disco: <strong id="modalSize">0 MB</strong>.
+        </div>
+        <p style="font-size: 13px; color: #475569;">
+          🛡️ <strong>Garantia de Segurança:</strong>
+          <br>&bull; Os arquivos do Lado Seguro nunca serão tocados.
+          <br>&bull; Os arquivos excluídos são enviados para a <strong>Lixeira do Windows</strong> (podem ser restaurados).
+          <br>&bull; O banco SQLite correspondente será atualizado automaticamente para manter o índice limpo.
+        </p>
+        <div style="font-size: 12px; font-weight: 700; color: #64748b;">Arquivos que serão removidos:</div>
+        <div id="modalFilesList" style="max-height: 150px; overflow-y: auto; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 10px; font-family: monospace; font-size: 11px; color: #334155;">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" onclick="closeDeleteModal()">Cancelar</button>
+        <button class="btn-delete-batch" id="btnConfirmDelete" onclick="executeBatchDelete()">
+          <span>Confirmar e Mover para a Lixeira</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Lightbox Modal for Side-by-Side Image Comparison -->
+  <div class="lightbox-overlay" id="lightboxModal">
+    <div class="lightbox-header">
+      <h4 id="lightboxTitle">Comparação Lado a Lado em Alta Resolução</h4>
+      <button onclick="closeLightbox()" style="background: none; border: none; color: white; font-size: 26px; cursor: pointer;">&times;</button>
+    </div>
+    <div class="lightbox-content">
+      <div class="lightbox-side">
+        <div class="lightbox-side-title">🛡️ Lado Seguro (Preservar)</div>
+        <img id="lightboxImgSafe" src="" alt="Safe Image">
+      </div>
+      <div class="lightbox-side">
+        <div class="lightbox-side-title">🗑️ Lado Candidato (Alvo)</div>
+        <img id="lightboxImgCand" src="" alt="Candidate Image">
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let currentSession = null;
+    let availableDbs = [];
+    let availableReports = [];
+    let currentPage = 1;
+    let totalPages = 1;
+    let selectedFilePaths = new Set();
+    let currentItemsMap = new Map();
+    let searchDebounceTimer = null;
+
+    // Inicialização
+    window.addEventListener('DOMContentLoaded', async () => {
+      await fetchAvailable();
+    });
+
+    async function fetchAvailable() {
+      try {
+        const res = await fetch('/api/available');
+        const data = await res.json();
+        availableDbs = data.databases || [];
+        availableReports = data.reports || [];
+
+        populateSelects();
+
+        // Se já houver sessão ativa
+        if (data.current_session && data.current_session.duplicates_count > 0) {
+          updateHeaderStats(data.current_session.duplicates_count, data.current_session.total_wasted_human);
+          loadDuplicates(1);
+        } else if (availableReports.length > 0) {
+          // Carrega automaticamente o primeiro relatório disponível
+          document.getElementById('selectReportFile').value = availableReports[0].filename;
+          initReportSession();
+        }
+      } catch (err) {
+        console.error('Erro ao buscar dados disponíveis:', err);
+      }
+    }
+
+    function populateSelects() {
+      const safeSelect = document.getElementById('selectSafeDb');
+      const candSelect = document.getElementById('selectCandDb');
+      const reportSelect = document.getElementById('selectReportFile');
+
+      safeSelect.innerHTML = '';
+      candSelect.innerHTML = '';
+      availableDbs.forEach((db, i) => {
+        safeSelect.innerHTML += `<option value="${db.name}">${db.name} (${db.size_human})</option>`;
+        candSelect.innerHTML += `<option value="${db.name}">${db.name} (${db.size_human})</option>`;
+      });
+
+      // Se tiver pelo menos 2 bancos, seleciona o 1º como seguro e o 2º como candidato
+      if (availableDbs.length >= 2) {
+        safeSelect.selectedIndex = 0;
+        candSelect.selectedIndex = 1;
+      }
+
+      reportSelect.innerHTML = '';
+      availableReports.forEach(r => {
+        reportSelect.innerHTML += `<option value="${r.filename}">${r.filename} (${r.duplicates_count} duplicatas)</option>`;
+      });
+    }
+
+    function switchTab(tab) {
+      document.getElementById('tabLiveDb').classList.toggle('active', tab === 'live_db');
+      document.getElementById('tabReport').classList.toggle('active', tab === 'report');
+      document.getElementById('liveDbSection').style.display = tab === 'live_db' ? 'flex' : 'none';
+      document.getElementById('reportSection').style.display = tab === 'report' ? 'flex' : 'none';
+    }
+
+    async function initLiveDbSession() {
+      const safeProj = document.getElementById('selectSafeDb').value;
+      const candProj = document.getElementById('selectCandDb').value;
+
+      if (!safeProj || !candProj) {
+        alert('Selecione ambos os projetos para comparar.');
+        return;
+      }
+      if (safeProj === candProj) {
+        alert('O Lado Seguro e o Lado Candidato não podem ser o mesmo banco!');
+        return;
+      }
+
+      try {
+        const res = await fetch('/api/session/init', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            mode: 'live_db',
+            safe_project: safeProj,
+            cand_project: candProj
+          })
+        });
+        const data = await res.json();
+        if (data.success) {
+          selectedFilePaths.clear();
+          updateHeaderStats(data.session.duplicates_count, data.session.total_wasted_human);
+          loadDuplicates(1);
+        } else {
+          alert('Erro: ' + (data.error || 'Falha ao iniciar sessão'));
+        }
+      } catch (e) {
+        alert('Erro de conexão com o servidor.');
+      }
+    }
+
+    async function initReportSession() {
+      const reportFile = document.getElementById('selectReportFile').value;
+      if (!reportFile) return;
+
+      try {
+        const res = await fetch('/api/session/init', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            mode: 'report',
+            report_file: reportFile,
+            swap_sides: false
+          })
+        });
+        const data = await res.json();
+        if (data.success) {
+          selectedFilePaths.clear();
+          updateHeaderStats(data.session.duplicates_count, data.session.total_wasted_human);
+          loadDuplicates(1);
+        } else {
+          alert('Erro: ' + (data.error || 'Falha ao carregar relatório'));
+        }
+      } catch (e) {
+        alert('Erro de conexão ao carregar relatório.');
+      }
+    }
+
+    async function swapSides() {
+      try {
+        // Se estiver no seletor de Live DB antes de carregar
+        const safeSelect = document.getElementById('selectSafeDb');
+        const candSelect = document.getElementById('selectCandDb');
+        const temp = safeSelect.selectedIndex;
+        safeSelect.selectedIndex = candSelect.selectedIndex;
+        candSelect.selectedIndex = temp;
+
+        // Se já tiver uma sessão ativa, inverte no backend também
+        const res = await fetch('/api/session/swap', { method: 'POST' });
+        const data = await res.json();
+        if (data.success) {
+          selectedFilePaths.clear();
+          loadDuplicates(currentPage);
+        }
+      } catch (e) {
+        console.error('Erro ao inverter lados:', e);
+      }
+    }
+
+    function updateHeaderStats(count, wastedHuman) {
+      document.getElementById('topStatCount').innerText = count;
+      document.getElementById('topStatSpace').innerText = wastedHuman;
+      updateSelectionBar();
+    }
+
+    function debounceSearch() {
+      clearTimeout(searchDebounceTimer);
+      searchDebounceTimer = setTimeout(() => {
+        loadDuplicates(1);
+      }, 300);
+    }
+
+    async function loadDuplicates(page = 1) {
+      currentPage = page;
+      const sort = document.getElementById('sortSelect').value;
+      const type = document.getElementById('typeSelect').value;
+      const minSize = document.getElementById('minSizeSelect').value;
+      const search = document.getElementById('searchInput').value;
+
+      const container = document.getElementById('dupsContainer');
+      container.innerHTML = `<div class="empty-state"><h3>Carregando duplicatas...</h3></div>`;
+
+      try {
+        const url = `/api/duplicates?page=${page}&limit=24&sort=${sort}&type=${type}&min_size_mb=${minSize}&search=${encodeURIComponent(search)}`;
+        const res = await fetch(url);
+        const data = await res.json();
+
+        currentItemsMap.clear();
+        totalPages = data.total_pages || 1;
+
+        if (!data.items || data.items.length === 0) {
+          container.innerHTML = `
+            <div class="empty-state">
+              <h3>Nenhuma duplicata encontrada</h3>
+              <p>Nenhum item corresponde aos filtros selecionados ou todos já foram resolvidos.</p>
+            </div>`;
+          document.getElementById('paginationBar').style.display = 'none';
+          return;
+        }
+
+        renderDuplicates(data.items, data.safe_project, data.cand_project);
+        renderPagination(data);
+        updateSelectionBar();
+      } catch (e) {
+        container.innerHTML = `<div class="empty-state"><h3 style="color: #dc2626;">Erro ao carregar dados do servidor.</h3></div>`;
+      }
+    }
+
+    function renderDuplicates(items, safeProject, candProject) {
+      const container = document.getElementById('dupsContainer');
+      container.innerHTML = '';
+
+      items.forEach(item => {
+        currentItemsMap.set(item.cand_path, item);
+        const isChecked = selectedFilePaths.has(item.cand_path);
+
+        // Define classe do badge de tamanho
+        let sizeClass = 'size-normal';
+        if (item.size_bytes >= 500 * 1024 * 1024) sizeClass = 'size-huge';
+        else if (item.size_bytes >= 50 * 1024 * 1024) sizeClass = 'size-big';
+
+        const typeTag = item.media_type === 'video' 
+          ? '<span class="card-type-tag tag-video">🎥 VÍDEO</span>'
+          : item.media_type === 'image'
+          ? '<span class="card-type-tag tag-image">📷 IMAGEM</span>'
+          : '<span class="card-type-tag tag-other">📄 ARQUIVO</span>';
+
+        const card = document.createElement('div');
+        card.className = `dup-card ${isChecked ? 'selected' : ''}`;
+        card.id = `card-${item.id}`;
+
+        card.innerHTML = `
+          <div class="card-header">
+            <div class="card-meta-left">
+              <span class="card-id">#${item.id}</span>
+              <span class="card-size-badge ${sizeClass}">💾 ${item.size_human}</span>
+              ${typeTag}
+            </div>
+          </div>
+
+          <div class="card-body">
+            <!-- Lado Seguro (Esquerda) -->
+            <div class="side-pane safe-side">
+              <div class="pane-header">
+                <span class="pane-badge safe">🛡️ ORIGEM PRESERVADA (${safeProject || 'SEGURO'})</span>
+                <span style="font-size: 11px; font-weight: 700;">
+                  ${item.safe_exists ? '<span style="color:#059669;">🟢 Conectado</span>' : '<span style="color:#dc2626;">🔴 Drive Desconectado</span>'}
+                </span>
+              </div>
+
+              <div class="media-preview-box" id="preview-safe-${item.id}">
+                ${renderMediaPreview(item.safe_path, item.media_type, `safe-media-${item.id}`, item.cand_path)}
+              </div>
+
+              <div class="file-details">
+                <div class="file-name">${escapeHtml(item.safe_name)}</div>
+                <div class="file-path" title="${escapeHtml(item.safe_path)}">${escapeHtml(item.safe_path)}</div>
+              </div>
+
+              <div class="pane-actions">
+                <button class="btn-action" onclick="revealInExplorer('${escapePath(item.safe_path)}')">📁 Abrir no Explorer</button>
+                <button class="btn-action" onclick="openFile('${escapePath(item.safe_path)}')">▶️ Abrir Arquivo</button>
+                <button class="btn-action" onclick="copyToClipboard('${escapePath(item.safe_path)}', this)">📋 Copiar Caminho</button>
+              </div>
+            </div>
+
+            <!-- Lado Candidato (Direita) -->
+            <div class="side-pane cand-side">
+              <div class="pane-header">
+                <span class="pane-badge cand">🗑️ CANDIDATO À REMOÇÃO (${candProject || 'ALVO'})</span>
+                <label class="checkbox-container">
+                  <input type="checkbox" class="cand-checkbox" 
+                    id="chk-${item.id}" 
+                    ${isChecked ? 'checked' : ''} 
+                    onchange="toggleItemSelection('${escapePath(item.cand_path)}', ${item.id})">
+                  <span class="checkbox-label">Marcar para Apagar</span>
+                </label>
+              </div>
+
+              <div class="media-preview-box" id="preview-cand-${item.id}">
+                ${renderMediaPreview(item.cand_path, item.media_type, `cand-media-${item.id}`, item.safe_path)}
+              </div>
+
+              <div class="file-details">
+                <div class="file-name">${escapeHtml(item.cand_name)}</div>
+                <div class="file-path" title="${escapeHtml(item.cand_path)}">${escapeHtml(item.cand_path)}</div>
+              </div>
+
+              <div class="pane-actions">
+                <button class="btn-action" onclick="revealInExplorer('${escapePath(item.cand_path)}')">📁 Abrir no Explorer</button>
+                <button class="btn-action" onclick="openFile('${escapePath(item.cand_path)}')">▶️ Abrir Arquivo</button>
+                <button class="btn-action" onclick="copyToClipboard('${escapePath(item.cand_path)}', this)">📋 Copiar Caminho</button>
+              </div>
+            </div>
+          </div>
+        `;
+        container.appendChild(card);
+      });
+    }
+
+    function copyToClipboard(text, btnElement) {
+      if (!navigator.clipboard) {
+        alert('Caminho: ' + text);
+        return;
+      }
+      navigator.clipboard.writeText(text).then(() => {
+        const orig = btnElement.innerHTML;
+        btnElement.innerHTML = '✅ Copiado!';
+        btnElement.style.borderColor = '#059669';
+        btnElement.style.color = '#059669';
+        setTimeout(() => {
+          btnElement.innerHTML = orig;
+          btnElement.style.borderColor = '';
+          btnElement.style.color = '';
+        }, 1500);
+      });
+    }
+
+    function renderMediaPreview(path, mediaType, elementId, counterpartPath) {
+      if (mediaType === 'image') {
+        const thumbUrl = `/api/thumbnail?path=${encodeURIComponent(path)}&size=500`;
+        return `
+          <img src="${thumbUrl}" alt="Preview" loading="lazy" 
+               onclick="openLightbox('${escapePath(path)}', '${escapePath(counterpartPath)}')">
+        `;
+      } else if (mediaType === 'video') {
+        const mediaUrl = `/api/media?path=${encodeURIComponent(path)}`;
+        return `
+          <video id="${elementId}" controls preload="metadata">
+            <source src="${mediaUrl}" type="video/mp4">
+            Seu navegador não suporta visualização de vídeo.
+          </video>
+          <button class="sync-video-btn" onclick="syncPlayVideos('${elementId}', '${elementId.replace('safe-', 'cand-').replace('cand-', 'safe-')}')">
+            🔄 Sincronizar Vídeos
+          </button>
+        `;
+      } else {
+        return `
+          <div style="text-align: center; color: #64748b; font-size: 13px; font-weight: 600;">
+            <div style="font-size: 40px; margin-bottom: 6px;">📄</div>
+            Sem prévia visual
+          </div>
+        `;
+      }
+    }
+
+    function syncPlayVideos(id1, id2) {
+      const v1 = document.getElementById(id1);
+      const v2 = document.getElementById(id2);
+      if (!v1 || !v2) return;
+
+      if (v1.paused) {
+        v2.currentTime = v1.currentTime;
+        v1.play();
+        v2.play();
+      } else {
+        v1.pause();
+        v2.pause();
+      }
+    }
+
+    function toggleItemSelection(candPath, cardId) {
+      if (selectedFilePaths.has(candPath)) {
+        selectedFilePaths.delete(candPath);
+        document.getElementById(`card-${cardId}`)?.classList.remove('selected');
+      } else {
+        selectedFilePaths.add(candPath);
+        document.getElementById(`card-${cardId}`)?.classList.add('selected');
+      }
+      updateSelectionBar();
+    }
+
+    function selectPageAll() {
+      currentItemsMap.forEach((item) => {
+        selectedFilePaths.add(item.cand_path);
+        const card = document.getElementById(`card-${item.id}`);
+        if (card) {
+          card.classList.add('selected');
+          const chk = document.getElementById(`chk-${item.id}`);
+          if (chk) chk.checked = true;
+        }
+      });
+      updateSelectionBar();
+    }
+
+    function selectOver100MB() {
+      const min100MB = 100 * 1024 * 1024;
+      currentItemsMap.forEach((item) => {
+        if (item.size_bytes >= min100MB) {
+          selectedFilePaths.add(item.cand_path);
+          const card = document.getElementById(`card-${item.id}`);
+          if (card) {
+            card.classList.add('selected');
+            const chk = document.getElementById(`chk-${item.id}`);
+            if (chk) chk.checked = true;
+          }
+        }
+      });
+      updateSelectionBar();
+    }
+
+    function invertPageSelection() {
+      currentItemsMap.forEach((item) => {
+        const isSelected = selectedFilePaths.has(item.cand_path);
+        if (isSelected) {
+          selectedFilePaths.delete(item.cand_path);
+        } else {
+          selectedFilePaths.add(item.cand_path);
+        }
+        const card = document.getElementById(`card-${item.id}`);
+        if (card) {
+          card.classList.toggle('selected', !isSelected);
+          const chk = document.getElementById(`chk-${item.id}`);
+          if (chk) chk.checked = !isSelected;
+        }
+      });
+      updateSelectionBar();
+    }
+
+    function clearAllSelection() {
+      selectedFilePaths.clear();
+      document.querySelectorAll('.dup-card').forEach(c => c.classList.remove('selected'));
+      document.querySelectorAll('.cand-checkbox').forEach(c => c.checked = false);
+      updateSelectionBar();
+    }
+
+    function updateSelectionBar() {
+      const bar = document.getElementById('floatingBar');
+      const count = selectedFilePaths.size;
+
+      let totalBytes = 0;
+      selectedFilePaths.forEach(path => {
+        const item = currentItemsMap.get(path);
+        if (item) totalBytes += item.size_bytes;
+      });
+
+      const formatted = formatBytes(totalBytes);
+      document.getElementById('floatSelectedCount').innerText = `${count} ${count === 1 ? 'item' : 'itens'}`;
+      document.getElementById('floatSelectedSize').innerText = formatted;
+      document.getElementById('topStatSelected').innerText = `${formatted} (${count} itens)`;
+
+      if (count > 0) {
+        bar.classList.add('show');
+      } else {
+        bar.classList.remove('show');
+      }
+    }
+
+    function renderPagination(data) {
+      const bar = document.getElementById('paginationBar');
+      bar.style.display = 'flex';
+
+      const start = (data.page - 1) * data.limit + 1;
+      const end = Math.min(start + data.limit - 1, data.total_filtered);
+      document.getElementById('paginationInfo').innerText = `Mostrando ${start} a ${end} de ${data.total_filtered} duplicatas filtradas`;
+      document.getElementById('pageIndicator').innerText = `Página ${data.page} de ${data.total_pages}`;
+
+      document.getElementById('btnFirstPage').disabled = data.page <= 1;
+      document.getElementById('btnPrevPage').disabled = data.page <= 1;
+      document.getElementById('btnNextPage').disabled = data.page >= data.total_pages;
+      document.getElementById('btnLastPage').disabled = data.page >= data.total_pages;
+    }
+
+    function changePage(newPage) {
+      if (newPage < 1 || newPage > totalPages) return;
+      loadDuplicates(newPage);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    // Ações do Sistema Operacional
+    async function revealInExplorer(path) {
+      try {
+        const res = await fetch('/api/reveal', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ path })
+        });
+        const data = await res.json();
+        if (!data.success) alert(data.error || 'Não foi possível abrir o Explorer');
+      } catch (e) {
+        alert('Erro ao comunicar com o servidor para abrir o Explorer');
+      }
+    }
+
+    async function openFile(path) {
+      try {
+        const res = await fetch('/api/open', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ path })
+        });
+        const data = await res.json();
+        if (!data.success) alert(data.error || 'Não foi possível abrir o arquivo');
+      } catch (e) {
+        alert('Erro ao comunicar com o servidor para abrir o arquivo');
+      }
+    }
+
+    // Modal de Exclusão
+    function openDeleteModal() {
+      if (selectedFilePaths.size === 0) return;
+      document.getElementById('modalCount').innerText = selectedFilePaths.size;
+      
+      let totalBytes = 0;
+      const listEl = document.getElementById('modalFilesList');
+      listEl.innerHTML = '';
+      selectedFilePaths.forEach(p => {
+        const item = currentItemsMap.get(p);
+        if (item) totalBytes += item.size_bytes;
+        listEl.innerHTML += `<div>🗑️ ${escapeHtml(p)}</div>`;
+      });
+      document.getElementById('modalSize').innerText = formatBytes(totalBytes);
+      document.getElementById('deleteModal').classList.add('open');
+    }
+
+    function closeDeleteModal() {
+      document.getElementById('deleteModal').classList.remove('open');
+    }
+
+    async function executeBatchDelete() {
+      const btn = document.getElementById('btnConfirmDelete');
+      btn.disabled = true;
+      btn.innerText = 'Movendo para a Lixeira...';
+
+      try {
+        const res = await fetch('/api/delete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ paths: Array.from(selectedFilePaths) })
+        });
+        const data = await res.json();
+
+        if (data.success) {
+          alert(`Sucesso! ${data.deleted_count} arquivos foram movidos para a Lixeira do Windows.\nEspaço recuperado: ${data.freed_human}`);
+          selectedFilePaths.clear();
+          closeDeleteModal();
+          await fetchAvailable();
+          loadDuplicates(currentPage);
+        } else {
+          alert('Erro ao excluir arquivos: ' + (data.error || 'Falha desconhecida'));
+        }
+      } catch (e) {
+        alert('Erro de comunicação durante a exclusão.');
+      } finally {
+        btn.disabled = false;
+        btn.innerText = 'Confirmar e Mover para a Lixeira';
+      }
+    }
+
+    // Lightbox
+    function openLightbox(safePath, candPath) {
+      document.getElementById('lightboxImgSafe').src = `/api/media?path=${encodeURIComponent(safePath)}`;
+      document.getElementById('lightboxImgCand').src = `/api/media?path=${encodeURIComponent(candPath)}`;
+      document.getElementById('lightboxModal').classList.add('open');
+    }
+
+    function closeLightbox() {
+      document.getElementById('lightboxModal').classList.remove('open');
+      document.getElementById('lightboxImgSafe').src = '';
+      document.getElementById('lightboxImgCand').src = '';
+    }
+
+    // Auxiliares
+    function formatBytes(bytes) {
+      if (!bytes || bytes <= 0) return '0 B';
+      const k = 1024;
+      const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return (bytes / Math.pow(k, i)).toFixed(2) + ' ' + sizes[i];
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    function escapePath(path) {
+      if (!path) return '';
+      return path.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+    }
+  </script>
+</body>
+</html>

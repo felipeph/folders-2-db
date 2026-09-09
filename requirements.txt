@@ -1,1 +1,5 @@
 rich>=13.0.0
+send2trash>=2.0.0
+uvicorn>=0.30.0
+starlette>=0.30.0
+pillow>=10.0.0

@@ -124,6 +124,61 @@ class Database:
         finally:
             cursor.execute("DETACH DATABASE db_b")
 
+    def delete_file(self, filepath: str) -> bool:
+        """
+        Remove o registro de um arquivo do banco de dados (usado após exclusão no disco).
+        Retorna True se removeu, False se não existia.
+        """
+        cursor = self.conn.cursor()
+        cursor.execute('DELETE FROM files WHERE filepath = ?', (filepath,))
+        self.conn.commit()
+        return cursor.rowcount > 0
+
+    def get_file_info(self, filepath: str) -> Dict[str, Any]:
+        """
+        Retorna os dados cadastrados de um arquivo no banco.
+        """
+        cursor = self.conn.cursor()
+        cursor.execute('''
+            SELECT id, filepath, filename, size_bytes, mtime, partial_hash, exif_data, scanned_at 
+            FROM files WHERE filepath = ?
+        ''', (filepath,))
+        row = cursor.fetchone()
+        if not row:
+            return None
+        return {
+            "id": row[0],
+            "filepath": row[1],
+            "filename": row[2],
+            "size_bytes": row[3],
+            "mtime": row[4],
+            "partial_hash": row[5],
+            "exif_data": json.loads(row[6]) if row[6] else {},
+            "scanned_at": row[7]
+        }
+
+    def get_files_info_batch(self, filepaths: List[str]) -> Dict[str, Dict[str, Any]]:
+        """
+        Retorna metadados para um lote de arquivos.
+        """
+        if not filepaths:
+            return {}
+        cursor = self.conn.cursor()
+        placeholders = ','.join(['?'] * len(filepaths))
+        cursor.execute(f'''
+            SELECT filepath, filename, size_bytes, mtime, exif_data 
+            FROM files WHERE filepath IN ({placeholders})
+        ''', filepaths)
+        result = {}
+        for row in cursor.fetchall():
+            result[row[0]] = {
+                "filename": row[1],
+                "size_bytes": row[2],
+                "mtime": row[3],
+                "exif_data": json.loads(row[4]) if row[4] else {}
+            }
+        return result
+
     def get_total_files(self) -> int:
         cursor = self.conn.cursor()
         cursor.execute('SELECT COUNT(*) FROM files')

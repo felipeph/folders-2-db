@@ -27,7 +27,10 @@ logs/
 reports/
 *_report_*.json
 *_report_*.html
-*.html
+*_dashboard_*.html
+
+# Thumbnail cache
+.cache_thumbs/
 
 # Environment variables & secrets
 .env
