@@ -80,6 +80,69 @@ def get_media_type(filepath: str) -> str:
         return "audio"
     return "other"
 
+def build_duplicate_item(
+    item_id: int, 
+    safe_p: str, 
+    cand_p: str, 
+    size: int,
+    safe_mtime: Optional[float] = None,
+    cand_mtime: Optional[float] = None
+) -> Dict[str, Any]:
+    safe_name = os.path.basename(safe_p)
+    cand_name = os.path.basename(cand_p)
+    name_match = (safe_name.strip().lower() == cand_name.strip().lower())
+    
+    safe_exists = os.path.exists(safe_p)
+    cand_exists = os.path.exists(cand_p)
+    
+    date_safe_str = ""
+    date_cand_str = ""
+    
+    try:
+        if safe_mtime:
+            date_safe_str = datetime.fromtimestamp(safe_mtime).strftime("%d/%m/%Y %H:%M")
+        elif safe_exists:
+            st_s = os.stat(safe_p).st_mtime
+            date_safe_str = datetime.fromtimestamp(st_s).strftime("%d/%m/%Y %H:%M")
+    except Exception:
+        pass
+
+    try:
+        if cand_mtime:
+            date_cand_str = datetime.fromtimestamp(cand_mtime).strftime("%d/%m/%Y %H:%M")
+        elif cand_exists:
+            st_c = os.stat(cand_p).st_mtime
+            date_cand_str = datetime.fromtimestamp(st_c).strftime("%d/%m/%Y %H:%M")
+    except Exception:
+        pass
+        
+    date_match = True
+    if date_safe_str and date_cand_str:
+        date_match = (date_safe_str == date_cand_str)
+        
+    ext_safe = os.path.splitext(safe_p)[1].lower()
+    ext_cand = os.path.splitext(cand_p)[1].lower()
+    ext_match = (ext_safe == ext_cand)
+        
+    return {
+        "id": item_id,
+        "safe_path": safe_p,
+        "safe_name": safe_name,
+        "safe_exists": safe_exists,
+        "date_safe": date_safe_str,
+        "cand_path": cand_p,
+        "cand_name": cand_name,
+        "cand_exists": cand_exists,
+        "date_cand": date_cand_str,
+        "size_bytes": size,
+        "size_human": format_bytes(size),
+        "media_type": get_media_type(safe_p or cand_p),
+        "name_match": name_match,
+        "date_match": date_match,
+        "ext_match": ext_match,
+        "deleted": False
+    }
+
 def get_thumb_cache_path(filepath: str, size: int = 400) -> str:
     stat = None
     try:
@@ -224,19 +287,7 @@ async def api_init_session(request: Request):
             total_wasted += size
             safe_p = item.get(safe_key, "")
             cand_p = item.get(cand_key, "")
-            duplicates.append({
-                "id": i + 1,
-                "safe_path": safe_p,
-                "safe_name": os.path.basename(safe_p),
-                "safe_exists": os.path.exists(safe_p),
-                "cand_path": cand_p,
-                "cand_name": os.path.basename(cand_p),
-                "cand_exists": os.path.exists(cand_p),
-                "size_bytes": size,
-                "size_human": format_bytes(size),
-                "media_type": get_media_type(safe_p or cand_p),
-                "deleted": False
-            })
+            duplicates.append(build_duplicate_item(i + 1, safe_p, cand_p, size))
 
         CURRENT_SESSION.update({
             "title": f"Relatório: {project_name}",
@@ -271,19 +322,9 @@ async def api_init_session(request: Request):
             total_wasted += size
             safe_p = item.get("scanned_file", "")
             cand_p = item.get("db_file", "")
-            duplicates.append({
-                "id": i + 1,
-                "safe_path": safe_p,
-                "safe_name": os.path.basename(safe_p),
-                "safe_exists": os.path.exists(safe_p),
-                "cand_path": cand_p,
-                "cand_name": os.path.basename(cand_p),
-                "cand_exists": os.path.exists(cand_p),
-                "size_bytes": size,
-                "size_human": format_bytes(size),
-                "media_type": get_media_type(safe_p or cand_p),
-                "deleted": False
-            })
+            safe_m = item.get("safe_mtime")
+            cand_m = item.get("cand_mtime")
+            duplicates.append(build_duplicate_item(i + 1, safe_p, cand_p, size, safe_mtime=safe_m, cand_mtime=cand_m))
 
         CURRENT_SESSION.update({
             "title": f"Cruzamento Direto: {safe_proj} vs {cand_proj}",
@@ -339,7 +380,7 @@ async def api_get_duplicates(request: Request):
     """Retorna itens de duplicatas com ordenação, filtros e paginação."""
     params = request.query_params
     page = max(1, int(params.get("page", 1)))
-    limit = max(1, min(100, int(params.get("limit", 24))))
+    limit = max(1, min(50000, int(params.get("limit", 24))))
     sort_by = params.get("sort", "size_desc")
     media_filter = params.get("type", "all")
     search = params.get("search", "").strip().lower()
@@ -561,11 +602,39 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-def start_server(port: int = 8555, auto_open: bool = True, initial_report: Optional[str] = None):
+def start_server(port: int = 8555, auto_open: bool = True, initial_report: Optional[str] = None, initial_safe: Optional[str] = None, initial_cand: Optional[str] = None):
     """Inicia o servidor Uvicorn e opcionalmente abre o navegador."""
     import webbrowser
 
-    if initial_report:
+    if initial_safe and initial_cand:
+        safe_db_path = os.path.join(DBS_DIR, f"{initial_safe}.sqlite")
+        cand_db_path = os.path.join(DBS_DIR, f"{initial_cand}.sqlite")
+        if os.path.exists(safe_db_path) and os.path.exists(cand_db_path):
+            with Database(safe_db_path) as db_safe:
+                raw_dups = db_safe.compare_with_db(cand_db_path)
+            dups = []
+            total_w = 0
+            for i, item in enumerate(raw_dups):
+                sz = item.get("size_bytes", 0)
+                total_w += sz
+                sp = item.get("scanned_file", "")
+                cp = item.get("db_file", "")
+                safe_m = item.get("safe_mtime")
+                cand_m = item.get("cand_mtime")
+                dups.append(build_duplicate_item(i + 1, sp, cp, sz, safe_mtime=safe_m, cand_mtime=cand_m))
+            CURRENT_SESSION.update({
+                "title": f"Cruzamento: {initial_safe} vs {initial_cand}",
+                "safe_project": initial_safe,
+                "cand_project": initial_cand,
+                "safe_db_path": safe_db_path,
+                "cand_db_path": cand_db_path,
+                "source_type": "live_db",
+                "report_file": "",
+                "duplicates": dups,
+                "total_wasted_bytes": total_w,
+                "loaded_at": datetime.now().isoformat()
+            })
+    elif initial_report:
         report_path = os.path.join(REPORTS_DIR, initial_report) if not os.path.isabs(initial_report) else initial_report
         if os.path.exists(report_path):
             with open(report_path, "r", encoding="utf-8") as f:
@@ -578,19 +647,7 @@ def start_server(port: int = 8555, auto_open: bool = True, initial_report: Optio
                 total_w += sz
                 sp = item.get("db_file", "")
                 cp = item.get("scanned_file", "")
-                dups.append({
-                    "id": i + 1,
-                    "safe_path": sp,
-                    "safe_name": os.path.basename(sp),
-                    "safe_exists": os.path.exists(sp),
-                    "cand_path": cp,
-                    "cand_name": os.path.basename(cp),
-                    "cand_exists": os.path.exists(cp),
-                    "size_bytes": sz,
-                    "size_human": format_bytes(sz),
-                    "media_type": get_media_type(sp or cp),
-                    "deleted": False
-                })
+                dups.append(build_duplicate_item(i + 1, sp, cp, sz))
             CURRENT_SESSION.update({
                 "title": f"Relatório: {data.get('project', 'Projeto')}",
                 "safe_project": "Origem Preservada (Base)",

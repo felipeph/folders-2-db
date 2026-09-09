@@ -107,18 +107,20 @@ class Database:
         
         try:
             cursor.execute('''
-                SELECT a.filepath, b.filepath, a.size_bytes 
+                SELECT a.filepath, b.filepath, a.size_bytes, a.mtime, b.mtime 
                 FROM files a 
                 INNER JOIN db_b.files b 
                 ON a.size_bytes = b.size_bytes AND a.partial_hash = b.partial_hash
             ''')
             
             duplicates = []
-            for a_path, b_path, size in cursor.fetchall():
+            for a_path, b_path, size, a_mtime, b_mtime in cursor.fetchall():
                 duplicates.append({
                     "scanned_file": a_path,  # Arquivo no DB principal (A)
                     "db_file": b_path,       # Duplicata encontrada no DB secundário (B)
-                    "size_bytes": size
+                    "size_bytes": size,
+                    "safe_mtime": a_mtime,
+                    "cand_mtime": b_mtime
                 })
             return duplicates
         finally:

@@ -327,18 +327,19 @@ def interactive_mode():
         project = ask_project("Escolha o projeto para gerar o relatório", allow_new=False)
         run_dashboard(project)
     elif action == "5":
-        reports_dir = "reports"
-        json_reports = [f for f in os.listdir(reports_dir) if f.endswith(".json")] if os.path.exists(reports_dir) else []
-        initial_rep = None
-        if json_reports:
-            console.print("\n[cyan]Relatórios de duplicatas encontrados:[/cyan]")
-            for i, r in enumerate(json_reports, 1):
-                console.print(f" [bold yellow][{i}][/bold yellow] {r}")
-            console.print(" [bold yellow][0][/bold yellow] Abrir WebApp sem relatório inicial (selecionar no navegador)")
-            c = Prompt.ask("Escolha um relatório para abrir", default="1")
-            if c.isdigit() and 1 <= int(c) <= len(json_reports):
-                initial_rep = json_reports[int(c) - 1]
-        run_dedup_webapp(initial_report=initial_rep)
+        console.print("\n[bold cyan]--- Central de Ação de Duplicatas (WebApp) ---[/bold cyan]")
+        projects = get_existing_projects()
+        if len(projects) >= 2:
+            console.print("\n[bold green]Selecione os bancos SQLite para cruzar e analisar na Central Interativa:[/bold green]")
+            safe_p = ask_project("Escolha o banco SEGURO (Preservar / Nunca apagar)", allow_new=False)
+            cand_p = ask_project("Escolha o banco CANDIDATO (Alvo de limpeza)", allow_new=False)
+            run_dedup_webapp(initial_safe=safe_p, initial_cand=cand_p)
+        elif len(projects) == 1:
+            console.print(f"[yellow]Aviso: Há apenas 1 banco indexado ('{projects[0]}'). Abrindo Central no navegador...[/yellow]")
+            run_dedup_webapp()
+        else:
+            console.print("[yellow]Nenhum banco indexado encontrado. Abrindo Central no navegador...[/yellow]")
+            run_dedup_webapp()
 
 def main():
     parser = argparse.ArgumentParser(description="Ferramenta de indexação e deduplicação de mídias.")
@@ -359,6 +360,8 @@ def main():
     
     webapp_parser = subparsers.add_parser("webapp", help="Inicia a Central Interativa de Ação de Duplicatas (WebApp)")
     webapp_parser.add_argument("--report", help="Nome ou caminho do relatório JSON inicial")
+    webapp_parser.add_argument("--safe", help="Nome do projeto SQLite seguro (preservar)")
+    webapp_parser.add_argument("--cand", help="Nome do projeto SQLite candidato (alvo de limpeza)")
     webapp_parser.add_argument("--port", type=int, default=8555, help="Porta HTTP do servidor local (padrão: 8555)")
 
     args = parser.parse_args()
@@ -371,7 +374,7 @@ def main():
         elif args.command == "compare-db":
             run_compare_db(args.proj_a, args.proj_b)
         elif args.command == "webapp":
-            run_dedup_webapp(port=args.port, initial_report=args.report)
+            run_dedup_webapp(port=args.port, initial_report=args.report, initial_safe=args.safe, initial_cand=args.cand)
         elif not args.command:
             interactive_mode()
     except KeyboardInterrupt:

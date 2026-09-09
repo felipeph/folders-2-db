@@ -364,7 +364,7 @@
 
     /* Barra Inferior do Painel: Informações e Ações do SO */
     .pane-footer {
-      padding: 14px 18px;
+      padding: 12px 16px;
       background: #ffffff;
       border-top: 1px solid var(--border);
       display: flex;
@@ -372,21 +372,129 @@
       gap: 8px;
       flex-shrink: 0;
     }
+
+    .file-field-group {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+    .file-field-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .diff-badge {
+      font-size: 10.5px;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 4px;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      text-transform: none;
+      letter-spacing: normal;
+      transition: all 0.15s;
+    }
+    .diff-badge.match {
+      background: #ecfdf5;
+      color: #047857;
+      border: 1px solid #a7f3d0;
+    }
+    .diff-badge.mismatch {
+      background: #fef2f2;
+      color: #b91c1c;
+      border: 1px solid #fecaca;
+    }
+
     .file-name-row {
-      font-size: 14px;
+      font-size: 13px;
+      font-weight: 700;
+      padding: 6px 10px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: #ffffff;
+      color: #0f172a;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      transition: all 0.15s;
+    }
+    .file-name-row.is-match {
+      background: #f0fdf4;
+      border-color: #bbf7d0;
+      color: #14532d;
+    }
+    .file-name-row.is-mismatch {
+      background: #fef2f2;
+      border-color: #fecaca;
+      color: #7f1d1d;
+    }
+
+    .file-meta-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    .meta-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
+      font-size: 11px;
+      color: var(--text-sub);
+      background: #f8fafc;
+      padding: 4px 8px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      min-width: 0;
+    }
+    .meta-label {
+      font-weight: 600;
+      color: var(--text-muted);
+      font-size: 10.5px;
+      flex-shrink: 0;
+    }
+    .meta-value {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10.5px;
       font-weight: 700;
       color: #0f172a;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+      flex: 1;
+      margin-left: 4px;
     }
+    .diff-indicator-inline {
+      font-size: 10px;
+      font-weight: 700;
+      padding: 1px 5px;
+      border-radius: 4px;
+      flex-shrink: 0;
+    }
+    .diff-indicator-inline.match {
+      background: #ecfdf5;
+      color: #047857;
+      border: 1px solid #a7f3d0;
+    }
+    .diff-indicator-inline.mismatch {
+      background: #fef2f2;
+      color: #b91c1c;
+      border: 1px solid #fecaca;
+    }
+
     .file-path-row {
       font-family: 'JetBrains Mono', monospace;
       font-size: 11px;
       color: #475569;
       background: #f8fafc;
       border: 1px solid var(--border);
-      padding: 6px 10px;
+      padding: 5px 10px;
       border-radius: 6px;
       white-space: nowrap;
       overflow: hidden;
@@ -397,26 +505,105 @@
       display: flex;
       align-items: center;
       gap: 8px;
-      margin-top: 2px;
     }
     .btn-os-action {
       background: #ffffff;
       color: #1e293b;
       border: 1px solid var(--border-dark);
-      padding: 6px 12px;
+      padding: 5px 10px;
       border-radius: 6px;
       font-size: 12px;
       font-weight: 600;
       cursor: pointer;
       display: inline-flex;
       align-items: center;
-      gap: 6px;
+      gap: 5px;
       transition: all 0.15s;
     }
     .btn-os-action:hover {
       background: #f1f5f9;
       border-color: #94a3b8;
       color: #0f172a;
+    }
+
+    /* Diff Strip Minimalista no Header */
+    .diff-header-strip {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-left: 8px;
+    }
+    .diff-pill {
+      font-size: 11px;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 6px;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      white-space: nowrap;
+      transition: all 0.15s;
+    }
+    .diff-pill.match {
+      background: #ecfdf5;
+      color: #065f46;
+      border: 1px solid #a7f3d0;
+    }
+    .diff-pill.mismatch {
+      background: #fef2f2;
+      color: #991b1b;
+      border: 1px solid #fecaca;
+    }
+
+    /* Card de Estado Vazio Inicial */
+    .empty-state-card {
+      grid-column: 1 / -1;
+      background: #ffffff;
+      border: 1.5px dashed var(--border-dark);
+      border-radius: var(--radius);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 60px 24px;
+      text-align: center;
+      gap: 14px;
+      margin: auto 0;
+    }
+    .empty-state-icon {
+      font-size: 48px;
+      margin-bottom: 4px;
+    }
+    .empty-state-title {
+      font-size: 18px;
+      font-weight: 800;
+      color: #0f172a;
+    }
+    .empty-state-desc {
+      font-size: 13px;
+      color: var(--text-sub);
+      max-width: 440px;
+      line-height: 1.5;
+    }
+    .btn-empty-select {
+      margin-top: 8px;
+      background: var(--primary);
+      color: #ffffff;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      box-shadow: 0 4px 12px rgba(37,99,235,0.2);
+      transition: all 0.15s;
+    }
+    .btn-empty-select:hover {
+      background: var(--primary-hover);
+      transform: scale(1.02);
     }
 
     /* 3. Rodapé Global com Atalhos e Ação em Lote */
@@ -606,6 +793,13 @@
       <button class="nav-btn" id="btnNext" onclick="navigateNext()" title="Próximo (Seta Direita)">▶</button>
       <span class="meta-tag-size" id="metaSize">0 B</span>
       <span class="meta-tag-type" id="metaType">MÍDIA</span>
+
+      <!-- Diff Strip Minimalista no Header -->
+      <div class="diff-header-strip" id="diffHeaderStrip" style="display: none;">
+        <span class="diff-pill match" id="pillSizeMatch" title="Assinatura e tamanho exatos">🟢 Conteúdo Idêntico</span>
+        <span class="diff-pill" id="pillNameMatch">🟢 Nomes Idênticos</span>
+        <span class="diff-pill" id="pillDateMatch">🟢 Datas Idênticas</span>
+      </div>
     </div>
 
     <!-- Header Direita: Filtro Rápido e Contador de Marcados -->
@@ -625,8 +819,21 @@
   <!-- 2. Palco Principal: Comparação 1-a-1 Focada -->
   <main>
     <div class="stage-container" id="stageContainer">
+      <!-- Card de Estado Vazio Inicial -->
+      <div class="empty-state-card" id="emptyStateCard" style="display: none;">
+        <div class="empty-state-icon">⚡</div>
+        <div class="empty-state-title">Nenhum Banco Selecionado</div>
+        <div class="empty-state-desc">
+          A Central de Duplicatas abriu limpa por padrão.<br>
+          Selecione o banco de dados <strong>Seguro</strong> e o banco <strong>Candidato</strong> para iniciar a comparação.
+        </div>
+        <button class="btn-empty-select" onclick="openSettingsModal()">
+          ⚙️ Escolher Bancos de Dados
+        </button>
+      </div>
+
       <!-- Painel Esquerdo: Lado Seguro (Preservar) -->
-      <div class="pane-card safe-pane">
+      <div class="pane-card safe-pane" id="safePaneCard">
         <div class="pane-topbar">
           <div class="pane-title safe">
             🛡️ ORIGEM PRESERVADA (<span id="safeTitleName">Base</span>)
@@ -639,7 +846,29 @@
         </div>
 
         <div class="pane-footer">
-          <div class="file-name-row" id="safeFileName">Nome do arquivo</div>
+          <!-- Linha de Nome com Indicador de Diff -->
+          <div class="file-field-group">
+            <div class="file-field-header">
+              <span class="file-field-label">Arquivo Preservado</span>
+              <span class="diff-badge match" id="safeNameDiff">🟢 Idêntico</span>
+            </div>
+            <div class="file-name-row" id="safeFileName">Nome do arquivo</div>
+          </div>
+
+          <!-- Linha de Metadados (Data e Tamanho) com Indicadores -->
+          <div class="file-meta-grid">
+            <div class="meta-item">
+              <span class="meta-label">Data:</span>
+              <span class="meta-value" id="safeFileDate">--/--/---- --:--</span>
+              <span class="diff-indicator-inline match" id="safeDateDiff">🟢 Igual</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Tamanho:</span>
+              <span class="meta-value" id="safeFileSize">0 B</span>
+              <span class="diff-indicator-inline match">🟢 Idêntico</span>
+            </div>
+          </div>
+
           <div class="file-path-row" id="safeFilePath" title="Clique duas vezes para selecionar">Caminho completo</div>
           <div class="pane-actions-row">
             <button class="btn-os-action" id="btnSafeReveal">📁 Abrir no Explorer</button>
@@ -665,7 +894,29 @@
         </div>
 
         <div class="pane-footer">
-          <div class="file-name-row" id="candFileName">Nome do arquivo</div>
+          <!-- Linha de Nome com Indicador de Diff -->
+          <div class="file-field-group">
+            <div class="file-field-header">
+              <span class="file-field-label">Arquivo Candidato</span>
+              <span class="diff-badge match" id="candNameDiff">🟢 Idêntico</span>
+            </div>
+            <div class="file-name-row" id="candFileName">Nome do arquivo</div>
+          </div>
+
+          <!-- Linha de Metadados (Data e Tamanho) com Indicadores -->
+          <div class="file-meta-grid">
+            <div class="meta-item">
+              <span class="meta-label">Data:</span>
+              <span class="meta-value" id="candFileDate">--/--/---- --:--</span>
+              <span class="diff-indicator-inline match" id="candDateDiff">🟢 Igual</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Tamanho:</span>
+              <span class="meta-value" id="candFileSize">0 B</span>
+              <span class="diff-indicator-inline match">🟢 Idêntico</span>
+            </div>
+          </div>
+
           <div class="file-path-row" id="candFilePath" title="Clique duas vezes para selecionar">Caminho completo</div>
           <div class="pane-actions-row">
             <button class="btn-os-action" id="btnCandReveal">📁 Abrir no Explorer</button>
@@ -706,14 +957,14 @@
       <div class="modal-body">
         <div class="form-group">
           <label>🛡️ Lado Seguro (Preservar / Nunca Apagar):</label>
-          <select id="selSafeDb"></select>
+          <select id="selSafeDb" onchange="document.getElementById('selReportFile').value = '';"></select>
         </div>
         <div style="text-align: center;">
           <button class="btn-os-action" onclick="swapModalSides()">⇄ Inverter Lados</button>
         </div>
         <div class="form-group">
           <label>🗑️ Lado Candidato (Alvo de Limpeza):</label>
-          <select id="selCandDb"></select>
+          <select id="selCandDb" onchange="document.getElementById('selReportFile').value = '';"></select>
         </div>
         <div style="border-top: 1px solid var(--border); margin: 6px 0;"></div>
         <div class="form-group">
@@ -791,27 +1042,52 @@
         
         populateModalSelects(data.databases, data.reports);
 
-        // Se já tiver duplicatas na sessão atual
+        // Se já tiver duplicatas na sessão atual (iniciado via CLI com bancos definidos)
         if (data.current_session && data.current_session.duplicates_count > 0) {
           await loadSessionDuplicates();
-        } else if (data.reports && data.reports.length > 0) {
-          // Inicializa o primeiro relatório disponível
-          await fetch('/api/session/init', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ mode: 'report', report_file: data.reports[0].filename })
-          });
-          await loadSessionDuplicates();
+        } else {
+          // Por padrão NÃO carrega nenhum relatório inicial!
+          // Apresenta o estado vazio e abre o modal para escolha dos bancos
+          renderEmptyState();
+          openSettingsModal();
         }
       } catch (err) {
         console.error('Erro na inicialização:', err);
       }
     }
 
+    function renderEmptyState() {
+      allDuplicates = [];
+      filteredDuplicates = [];
+      currentIndex = 0;
+      markedPaths.clear();
+
+      document.getElementById('hdrSafeName').innerText = 'Nenhum';
+      document.getElementById('hdrCandName').innerText = 'Nenhum';
+      document.getElementById('counterPill').innerText = '0 de 0';
+      document.getElementById('metaSize').innerText = '0 B';
+      document.getElementById('metaType').innerText = 'AGUARDANDO';
+      document.getElementById('btnPrev').disabled = true;
+      document.getElementById('btnNext').disabled = true;
+
+      const diffStrip = document.getElementById('diffHeaderStrip');
+      if (diffStrip) diffStrip.style.display = 'none';
+
+      const safePane = document.getElementById('safePaneCard');
+      const candPane = document.getElementById('candPaneCard');
+      const emptyCard = document.getElementById('emptyStateCard');
+
+      if (safePane) safePane.style.display = 'none';
+      if (candPane) candPane.style.display = 'none';
+      if (emptyCard) emptyCard.style.display = 'flex';
+
+      updateMarkedStats();
+    }
+
     async function loadSessionDuplicates() {
       try {
         // Busca todos os itens ordenados por maior tamanho
-        const res = await fetch('/api/duplicates?page=1&limit=10000&sort=size_desc');
+        const res = await fetch('/api/duplicates?page=1&limit=50000&sort=size_desc');
         const data = await res.json();
         allDuplicates = data.items || [];
         currentSessionInfo.safe_project = data.safe_project || 'Seguro';
@@ -848,13 +1124,14 @@
     function renderCurrentItem() {
       const total = filteredDuplicates.length;
       if (total === 0) {
-        document.getElementById('counterPill').innerText = '0 de 0';
-        document.getElementById('safeFileName').innerText = 'Nenhuma duplicata encontrada';
-        document.getElementById('candFileName').innerText = 'Nenhuma duplicata encontrada';
-        document.getElementById('safeMediaCanvas').innerHTML = '<div style="color: #64748b;">Nenhum arquivo para revisar</div>';
-        document.getElementById('candMediaCanvas').innerHTML = '<div style="color: #64748b;">Nenhum arquivo para revisar</div>';
+        renderEmptyState();
         return;
       }
+
+      document.getElementById('safePaneCard').style.display = 'flex';
+      document.getElementById('candPaneCard').style.display = 'flex';
+      document.getElementById('emptyStateCard').style.display = 'none';
+      document.getElementById('diffHeaderStrip').style.display = 'flex';
 
       const item = filteredDuplicates[currentIndex];
 
@@ -868,28 +1145,60 @@
       sizeEl.className = 'meta-tag-size' + (item.size_bytes >= 500*1024*1024 ? ' huge' : item.size_bytes >= 50*1024*1024 ? ' big' : '');
       document.getElementById('metaType').innerText = item.media_type === 'video' ? '🎥 VÍDEO' : item.media_type === 'image' ? '📷 IMAGEM' : '📄 ARQUIVO';
 
-      // Lado Seguro
-      document.getElementById('safeFileName').innerText = item.safe_name;
+      // Diff Status: Nome
+      const nameMatch = !!item.name_match;
+      const pillName = document.getElementById('pillNameMatch');
+      pillName.className = 'diff-pill ' + (nameMatch ? 'match' : 'mismatch');
+      pillName.innerHTML = nameMatch ? '🟢 Nomes Idênticos' : '🔴 Nomes Diferentes';
+
+      const safeNameDiff = document.getElementById('safeNameDiff');
+      const candNameDiff = document.getElementById('candNameDiff');
+      safeNameDiff.className = 'diff-badge ' + (nameMatch ? 'match' : 'mismatch');
+      safeNameDiff.innerHTML = nameMatch ? '🟢 Idêntico' : '🔴 Nome Divergente';
+      candNameDiff.className = 'diff-badge ' + (nameMatch ? 'match' : 'mismatch');
+      candNameDiff.innerHTML = nameMatch ? '🟢 Idêntico' : '🔴 Nome Divergente';
+
+      const safeFileName = document.getElementById('safeFileName');
+      const candFileName = document.getElementById('candFileName');
+      safeFileName.innerText = item.safe_name;
+      safeFileName.className = 'file-name-row ' + (nameMatch ? 'is-match' : 'is-mismatch');
+      candFileName.innerText = item.cand_name;
+      candFileName.className = 'file-name-row ' + (nameMatch ? 'is-match' : 'is-mismatch');
+
+      // Diff Status: Data
+      const dateMatch = !!item.date_match;
+      const pillDate = document.getElementById('pillDateMatch');
+      pillDate.className = 'diff-pill ' + (dateMatch ? 'match' : 'mismatch');
+      pillDate.innerHTML = dateMatch ? '🟢 Datas Idênticas' : '🔴 Datas Diferentes';
+
+      const safeDateDiff = document.getElementById('safeDateDiff');
+      const candDateDiff = document.getElementById('candDateDiff');
+      safeDateDiff.className = 'diff-indicator-inline ' + (dateMatch ? 'match' : 'mismatch');
+      safeDateDiff.innerHTML = dateMatch ? '🟢 Igual' : '🔴 Diferente';
+      candDateDiff.className = 'diff-indicator-inline ' + (dateMatch ? 'match' : 'mismatch');
+      candDateDiff.innerHTML = dateMatch ? '🟢 Igual' : '🔴 Diferente';
+
+      document.getElementById('safeFileDate').innerText = item.date_safe || 'Não informada';
+      document.getElementById('candFileDate').innerText = item.date_cand || 'Não informada';
+      document.getElementById('safeFileSize').innerText = item.size_human;
+      document.getElementById('candFileSize').innerText = item.size_human;
+
+      // Caminhos
       document.getElementById('safeFilePath').innerText = item.safe_path;
       document.getElementById('safeDiskStatus').innerHTML = item.safe_exists 
         ? '<span style="color: #059669;">🟢 Conectado</span>' 
         : '<span style="color: #dc2626;">🔴 Drive Desconectado</span>';
 
-      renderMediaBox('safeMediaCanvas', item.safe_path, item.media_type, item.cand_path);
-
-      // Ações do SO para Lado Seguro
-      bindOsActions('safe', item.safe_path);
-
-      // Lado Candidato
-      document.getElementById('candFileName').innerText = item.cand_name;
       document.getElementById('candFilePath').innerText = item.cand_path;
 
-      renderMediaBox('candMediaCanvas', item.cand_path, item.media_type, item.safe_path);
+      // Renderização de Mídia
+      renderMediaBox('safeMediaCanvas', item.safe_path, item.media_type, item.cand_path);
+      bindOsActions('safe', item.safe_path);
 
-      // Ações do SO para Lado Candidato
+      renderMediaBox('candMediaCanvas', item.cand_path, item.media_type, item.safe_path);
       bindOsActions('cand', item.cand_path);
 
-      // Estado de Marcação para exclusão
+      // Marcação para exclusão
       const isMarked = markedPaths.has(item.cand_path);
       const btnMark = document.getElementById('btnToggleMark');
       const candPane = document.getElementById('candPaneCard');
