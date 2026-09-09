@@ -422,33 +422,39 @@ async def api_media(request: Request):
 
 async def api_reveal_explorer(request: Request):
     """Abre o Windows Explorer selecionando e destacando o arquivo."""
-    body = await request.json()
-    filepath = body.get("path")
-    if not filepath:
-        return JSONResponse({"error": "Caminho não fornecido"}, status_code=400)
-        
-    norm_path = os.path.normpath(filepath)
-    if not os.path.exists(norm_path):
-        return JSONResponse({"error": f"Arquivo não encontrado no disco: {norm_path}"}, status_code=404)
-        
     try:
-        subprocess.Popen(['explorer', f'/select,{norm_path}'])
-        return JSONResponse({"success": True})
+        body = await request.json()
+        filepath = body.get("path")
+        if not filepath:
+            return JSONResponse({"error": "Caminho não fornecido"}, status_code=400)
+            
+        norm_path = os.path.normpath(filepath)
+        if os.path.exists(norm_path):
+            # Formato canônico do Windows Explorer para selecionar o arquivo
+            subprocess.Popen(f'explorer /select,"{norm_path}"')
+            return JSONResponse({"success": True})
+        else:
+            # Se o arquivo não existir diretamente mas a pasta existir, abre a pasta
+            parent_dir = os.path.dirname(norm_path)
+            if os.path.exists(parent_dir):
+                subprocess.Popen(f'explorer "{parent_dir}"')
+                return JSONResponse({"success": True, "opened_parent": True})
+            return JSONResponse({"error": f"Arquivo ou pasta não encontrado: {norm_path}"}, status_code=404)
     except Exception as e:
         return JSONResponse({"error": str(e)}, status_code=500)
 
 async def api_open_file(request: Request):
-    """Abre o arquivo no programa padrão do Windows."""
-    body = await request.json()
-    filepath = body.get("path")
-    if not filepath:
-        return JSONResponse({"error": "Caminho não fornecido"}, status_code=400)
-        
-    norm_path = os.path.normpath(filepath)
-    if not os.path.exists(norm_path):
-        return JSONResponse({"error": f"Arquivo não encontrado no disco: {norm_path}"}, status_code=404)
-        
+    """Abre o arquivo no programa padrão do Windows (VLC, Media Player, Fotos, etc)."""
     try:
+        body = await request.json()
+        filepath = body.get("path")
+        if not filepath:
+            return JSONResponse({"error": "Caminho não fornecido"}, status_code=400)
+            
+        norm_path = os.path.normpath(filepath)
+        if not os.path.exists(norm_path):
+            return JSONResponse({"error": f"Arquivo não encontrado no disco: {norm_path}"}, status_code=404)
+            
         os.startfile(norm_path)
         return JSONResponse({"success": True})
     except Exception as e:
