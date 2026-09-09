@@ -86,7 +86,17 @@ def build_duplicate_item(
     cand_p: str, 
     size: int,
     safe_mtime: Optional[float] = None,
-    cand_mtime: Optional[float] = None
+    cand_mtime: Optional[float] = None,
+    safe_width: Optional[int] = None,
+    safe_height: Optional[int] = None,
+    cand_width: Optional[int] = None,
+    cand_height: Optional[int] = None,
+    safe_size: Optional[int] = None,
+    cand_size: Optional[int] = None,
+    duplicate_type: str = "exact",
+    tz_shifted: bool = False,
+    shift_hours: int = 0,
+    quality_label: str = ""
 ) -> Dict[str, Any]:
     safe_name = os.path.basename(safe_p)
     cand_name = os.path.basename(cand_p)
@@ -123,6 +133,12 @@ def build_duplicate_item(
     ext_safe = os.path.splitext(safe_p)[1].lower()
     ext_cand = os.path.splitext(cand_p)[1].lower()
     ext_match = (ext_safe == ext_cand)
+
+    safe_mp = round((safe_width * safe_height) / 1_000_000.0, 1) if (safe_width and safe_height) else 0
+    cand_mp = round((cand_width * cand_height) / 1_000_000.0, 1) if (cand_width and cand_height) else 0
+
+    s_bytes = safe_size if safe_size is not None else size
+    c_bytes = cand_size if cand_size is not None else size
         
     return {
         "id": item_id,
@@ -134,8 +150,22 @@ def build_duplicate_item(
         "cand_name": cand_name,
         "cand_exists": cand_exists,
         "date_cand": date_cand_str,
-        "size_bytes": size,
-        "size_human": format_bytes(size),
+        "size_bytes": c_bytes,
+        "size_human": format_bytes(c_bytes),
+        "safe_size_bytes": s_bytes,
+        "safe_size_human": format_bytes(s_bytes),
+        "cand_size_bytes": c_bytes,
+        "cand_size_human": format_bytes(c_bytes),
+        "safe_width": safe_width,
+        "safe_height": safe_height,
+        "safe_mp": safe_mp,
+        "cand_width": cand_width,
+        "cand_height": cand_height,
+        "cand_mp": cand_mp,
+        "duplicate_type": duplicate_type,
+        "tz_shifted": tz_shifted,
+        "shift_hours": shift_hours,
+        "quality_label": quality_label,
         "media_type": get_media_type(safe_p or cand_p),
         "name_match": name_match,
         "date_match": date_match,
@@ -255,8 +285,9 @@ async def api_list_available(request: Request):
 async def api_init_session(request: Request):
     """
     Inicializa a sessão de duplicatas:
-    - Ou carregando um relatório JSON existente com definição de quem é o lado seguro.
-    - Ou executando o cruzamento dinâmico em tempo real entre dois bancos SQLite.
+    - Modo report: carrega um relatório JSON existente.
+    - Modo live_db: cruzamento em tempo real entre dois bancos (rápido ou aprofundado com fuso e qualidade).
+    - Modo internal_db: varredura interna dentro de um mesmo banco de dados.
     """
     body = await request.json()
     mode = body.get("mode", "report")
@@ -287,7 +318,24 @@ async def api_init_session(request: Request):
             total_wasted += size
             safe_p = item.get(safe_key, "")
             cand_p = item.get(cand_key, "")
-            duplicates.append(build_duplicate_item(i + 1, safe_p, cand_p, size))
+            duplicates.append(build_duplicate_item(
+                item_id=i + 1,
+                safe_p=safe_p,
+                cand_p=cand_p,
+                size=size,
+                safe_mtime=item.get("safe_mtime"),
+                cand_mtime=item.get("cand_mtime"),
+                safe_width=item.get("safe_width"),
+                safe_height=item.get("safe_height"),
+                cand_width=item.get("cand_width"),
+                cand_height=item.get("cand_height"),
+                safe_size=item.get("safe_size"),
+                cand_size=item.get("cand_size"),
+                duplicate_type=item.get("duplicate_type", "exact"),
+                tz_shifted=item.get("tz_shifted", False),
+                shift_hours=item.get("shift_hours", 0),
+                quality_label=item.get("quality_label", "")
+            ))
 
         CURRENT_SESSION.update({
             "title": f"Relatório: {project_name}",
@@ -305,6 +353,7 @@ async def api_init_session(request: Request):
     elif mode == "live_db":
         safe_proj = body.get("safe_project")
         cand_proj = body.get("cand_project")
+        deep_comparison = body.get("deep_comparison", False)
         
         safe_db_path = os.path.join(DBS_DIR, f"{safe_proj}.sqlite")
         cand_db_path = os.path.join(DBS_DIR, f"{cand_proj}.sqlite")
@@ -313,7 +362,10 @@ async def api_init_session(request: Request):
             return JSONResponse({"error": "Um ou ambos os bancos SQLite não foram encontrados."}, status_code=404)
             
         with Database(safe_db_path) as db_safe:
-            raw_dups = db_safe.compare_with_db(cand_db_path)
+            if deep_comparison:
+                raw_dups = db_safe.compare_with_db_deep(cand_db_path)
+            else:
+                raw_dups = db_safe.compare_with_db(cand_db_path)
             
         duplicates = []
         total_wasted = 0
@@ -324,15 +376,83 @@ async def api_init_session(request: Request):
             cand_p = item.get("db_file", "")
             safe_m = item.get("safe_mtime")
             cand_m = item.get("cand_mtime")
-            duplicates.append(build_duplicate_item(i + 1, safe_p, cand_p, size, safe_mtime=safe_m, cand_mtime=cand_m))
+            duplicates.append(build_duplicate_item(
+                item_id=i + 1,
+                safe_p=safe_p,
+                cand_p=cand_p,
+                size=size,
+                safe_mtime=safe_m,
+                cand_mtime=cand_m,
+                safe_width=item.get("safe_width"),
+                safe_height=item.get("safe_height"),
+                cand_width=item.get("cand_width"),
+                cand_height=item.get("cand_height"),
+                safe_size=item.get("safe_size"),
+                cand_size=item.get("cand_size"),
+                duplicate_type=item.get("duplicate_type", "exact"),
+                tz_shifted=item.get("tz_shifted", False),
+                shift_hours=item.get("shift_hours", 0),
+                quality_label=item.get("quality_label", "")
+            ))
 
         CURRENT_SESSION.update({
-            "title": f"Cruzamento Direto: {safe_proj} vs {cand_proj}",
+            "title": f"Cruzamento: {safe_proj} vs {cand_proj}" + (" (Aprofundado)" if deep_comparison else ""),
             "safe_project": safe_proj,
             "cand_project": cand_proj,
             "safe_db_path": safe_db_path,
             "cand_db_path": cand_db_path,
             "source_type": "live_db",
+            "report_file": "",
+            "duplicates": duplicates,
+            "total_wasted_bytes": total_wasted,
+            "loaded_at": datetime.now().isoformat()
+        })
+
+    elif mode == "internal_db":
+        project = body.get("project")
+        if not project:
+            return JSONResponse({"error": "Nome do projeto não informado."}, status_code=400)
+            
+        db_path = os.path.join(DBS_DIR, f"{project}.sqlite")
+        if not os.path.exists(db_path):
+            return JSONResponse({"error": f"Banco SQLite '{project}' não encontrado."}, status_code=404)
+            
+        with Database(db_path) as db:
+            raw_dups = db.find_internal_duplicates(progress_callback=lambda msg: print(f"[dedup] {msg}", flush=True))
+
+        duplicates = []
+        total_wasted = 0
+        for i, item in enumerate(raw_dups):
+            size = item.get("size_bytes", 0)
+            total_wasted += size
+            safe_p = item.get("scanned_file", "")
+            cand_p = item.get("db_file", "")
+            duplicates.append(build_duplicate_item(
+                item_id=i + 1,
+                safe_p=safe_p,
+                cand_p=cand_p,
+                size=size,
+                safe_mtime=item.get("safe_mtime"),
+                cand_mtime=item.get("cand_mtime"),
+                safe_width=item.get("safe_width"),
+                safe_height=item.get("safe_height"),
+                cand_width=item.get("cand_width"),
+                cand_height=item.get("cand_height"),
+                safe_size=item.get("safe_size"),
+                cand_size=item.get("cand_size"),
+                duplicate_type=item.get("duplicate_type", "exact"),
+                tz_shifted=item.get("tz_shifted", False),
+                shift_hours=item.get("shift_hours", 0),
+                quality_label=item.get("quality_label", "")
+            ))
+
+        CURRENT_SESSION.update({
+            "title": f"Duplicatas Internas: {project}",
+            "safe_project": f"{project} (Melhor Versão)",
+            "cand_project": f"{project} (Cópia / Menor Qualidade)",
+            "safe_db_path": db_path,
+            "cand_db_path": db_path,
+            "source_type": "internal_db",
             "report_file": "",
             "duplicates": duplicates,
             "total_wasted_bytes": total_wasted,
@@ -369,6 +489,11 @@ async def api_swap_sides(request: Request):
         item["safe_path"], item["cand_path"] = item["cand_path"], item["safe_path"]
         item["safe_name"], item["cand_name"] = item["cand_name"], item["safe_name"]
         item["safe_exists"], item["cand_exists"] = item["cand_exists"], item["safe_exists"]
+        item["safe_width"], item["cand_width"] = item["cand_width"], item["safe_width"]
+        item["safe_height"], item["cand_height"] = item["cand_height"], item["safe_height"]
+        item["safe_mp"], item["cand_mp"] = item["cand_mp"], item["safe_mp"]
+        item["safe_size_bytes"], item["cand_size_bytes"] = item["cand_size_bytes"], item["safe_size_bytes"]
+        item["safe_size_human"], item["cand_size_human"] = item["cand_size_human"], item["safe_size_human"]
         
     return JSONResponse({
         "success": True,
@@ -383,6 +508,7 @@ async def api_get_duplicates(request: Request):
     limit = max(1, min(50000, int(params.get("limit", 24))))
     sort_by = params.get("sort", "size_desc")
     media_filter = params.get("type", "all")
+    dup_type = params.get("dup_type", "all")
     search = params.get("search", "").strip().lower()
     min_size_mb = float(params.get("min_size_mb", 0))
 
@@ -390,6 +516,11 @@ async def api_get_duplicates(request: Request):
 
     if media_filter != "all":
         items = [d for d in items if d["media_type"] == media_filter]
+
+    if dup_type == "quality":
+        items = [d for d in items if d.get("duplicate_type") == "quality_diff"]
+    elif dup_type == "exact":
+        items = [d for d in items if d.get("duplicate_type") == "exact"]
 
     if min_size_mb > 0:
         min_bytes = min_size_mb * 1024 * 1024
@@ -602,16 +733,66 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-def start_server(port: int = 8555, auto_open: bool = True, initial_report: Optional[str] = None, initial_safe: Optional[str] = None, initial_cand: Optional[str] = None):
+def start_server(port: int = 8555, auto_open: bool = True, initial_report: Optional[str] = None, initial_safe: Optional[str] = None, initial_cand: Optional[str] = None, initial_internal: Optional[str] = None, initial_deep: bool = False):
     """Inicia o servidor Uvicorn e opcionalmente abre o navegador."""
     import webbrowser
 
-    if initial_safe and initial_cand:
+    if initial_internal:
+        internal_db_path = os.path.join(DBS_DIR, f"{initial_internal}.sqlite")
+        if os.path.exists(internal_db_path):
+            print(f"\n[dedup] Analisando duplicatas internas no banco '{initial_internal}'...", flush=True)
+            with Database(internal_db_path) as db:
+                raw_dups = db.find_internal_duplicates(progress_callback=lambda msg: print(f"[dedup] {msg}", flush=True))
+            print(f"[dedup] Encontradas {len(raw_dups)} duplicatas internas.", flush=True)
+            dups = []
+            total_w = 0
+            for i, item in enumerate(raw_dups):
+                sz = item.get("size_bytes", 0)
+                total_w += sz
+                sp = item.get("scanned_file", "")
+                cp = item.get("db_file", "")
+                dups.append(build_duplicate_item(
+                    item_id=i + 1,
+                    safe_p=sp,
+                    cand_p=cp,
+                    size=sz,
+                    safe_mtime=item.get("safe_mtime"),
+                    cand_mtime=item.get("cand_mtime"),
+                    safe_width=item.get("safe_width"),
+                    safe_height=item.get("safe_height"),
+                    cand_width=item.get("cand_width"),
+                    cand_height=item.get("cand_height"),
+                    safe_size=item.get("safe_size"),
+                    cand_size=item.get("cand_size"),
+                    duplicate_type=item.get("duplicate_type", "exact"),
+                    tz_shifted=item.get("tz_shifted", False),
+                    shift_hours=item.get("shift_hours", 0),
+                    quality_label=item.get("quality_label", "")
+                ))
+            CURRENT_SESSION.update({
+                "title": f"Duplicatas Internas: {initial_internal}",
+                "safe_project": f"{initial_internal} (Melhor Versão)",
+                "cand_project": f"{initial_internal} (Cópia / Menor Qualidade)",
+                "safe_db_path": internal_db_path,
+                "cand_db_path": internal_db_path,
+                "source_type": "internal_db",
+                "report_file": "",
+                "duplicates": dups,
+                "total_wasted_bytes": total_w,
+                "loaded_at": datetime.now().isoformat()
+            })
+    elif initial_safe and initial_cand:
         safe_db_path = os.path.join(DBS_DIR, f"{initial_safe}.sqlite")
         cand_db_path = os.path.join(DBS_DIR, f"{initial_cand}.sqlite")
         if os.path.exists(safe_db_path) and os.path.exists(cand_db_path):
             with Database(safe_db_path) as db_safe:
-                raw_dups = db_safe.compare_with_db(cand_db_path)
+                if initial_deep:
+                    print(f"\n[dedup] Cruzando '{initial_safe}' contra '{initial_cand}' (Modo Profundo)...", flush=True)
+                    raw_dups = db_safe.compare_with_db_deep(cand_db_path, progress_callback=lambda msg: print(f"[dedup] {msg}", flush=True))
+                else:
+                    print(f"\n[dedup] Cruzando '{initial_safe}' contra '{initial_cand}' (Modo Exato)...", flush=True)
+                    raw_dups = db_safe.compare_with_db(cand_db_path)
+            print(f"[dedup] Encontradas {len(raw_dups)} duplicatas.", flush=True)
             dups = []
             total_w = 0
             for i, item in enumerate(raw_dups):
@@ -621,9 +802,26 @@ def start_server(port: int = 8555, auto_open: bool = True, initial_report: Optio
                 cp = item.get("db_file", "")
                 safe_m = item.get("safe_mtime")
                 cand_m = item.get("cand_mtime")
-                dups.append(build_duplicate_item(i + 1, sp, cp, sz, safe_mtime=safe_m, cand_mtime=cand_m))
+                dups.append(build_duplicate_item(
+                    item_id=i + 1,
+                    safe_p=sp,
+                    cand_p=cp,
+                    size=sz,
+                    safe_mtime=safe_m,
+                    cand_mtime=cand_m,
+                    safe_width=item.get("safe_width"),
+                    safe_height=item.get("safe_height"),
+                    cand_width=item.get("cand_width"),
+                    cand_height=item.get("cand_height"),
+                    safe_size=item.get("safe_size"),
+                    cand_size=item.get("cand_size"),
+                    duplicate_type=item.get("duplicate_type", "exact"),
+                    tz_shifted=item.get("tz_shifted", False),
+                    shift_hours=item.get("shift_hours", 0),
+                    quality_label=item.get("quality_label", "")
+                ))
             CURRENT_SESSION.update({
-                "title": f"Cruzamento: {initial_safe} vs {initial_cand}",
+                "title": f"Cruzamento: {initial_safe} vs {initial_cand}" + (" (Aprofundado)" if initial_deep else ""),
                 "safe_project": initial_safe,
                 "cand_project": initial_cand,
                 "safe_db_path": safe_db_path,
@@ -645,9 +843,30 @@ def start_server(port: int = 8555, auto_open: bool = True, initial_report: Optio
             for i, item in enumerate(raw_dups):
                 sz = item.get("size_bytes", 0)
                 total_w += sz
-                sp = item.get("db_file", "")
-                cp = item.get("scanned_file", "")
-                dups.append(build_duplicate_item(i + 1, sp, cp, sz))
+                if "duplicate_type" in item:
+                    sp = item.get("scanned_file", "")
+                    cp = item.get("db_file", "")
+                else:
+                    sp = item.get("db_file", "")
+                    cp = item.get("scanned_file", "")
+                dups.append(build_duplicate_item(
+                    item_id=i + 1,
+                    safe_p=sp,
+                    cand_p=cp,
+                    size=sz,
+                    safe_mtime=item.get("safe_mtime"),
+                    cand_mtime=item.get("cand_mtime"),
+                    safe_width=item.get("safe_width"),
+                    safe_height=item.get("safe_height"),
+                    cand_width=item.get("cand_width"),
+                    cand_height=item.get("cand_height"),
+                    safe_size=item.get("safe_size"),
+                    cand_size=item.get("cand_size"),
+                    duplicate_type=item.get("duplicate_type", "exact"),
+                    tz_shifted=item.get("tz_shifted", False),
+                    shift_hours=item.get("shift_hours", 0),
+                    quality_label=item.get("quality_label", "")
+                ))
             CURRENT_SESSION.update({
                 "title": f"Relatório: {data.get('project', 'Projeto')}",
                 "safe_project": "Origem Preservada (Base)",

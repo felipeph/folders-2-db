@@ -201,8 +201,43 @@ def run_compare(project_name: str, directory: str):
             run_dedup_webapp(initial_report=os.path.basename(json_rep))
 
 
-def run_compare_db(project_a: str, project_b: str):
-    console.print(f"[bold blue]Comparando Projeto '{project_a}' contra Projeto '{project_b}'[/bold blue]")
+def run_internal(project_name: str):
+    console.print(f"[bold blue]Buscando Duplicatas Internas no projeto '{project_name}'[/bold blue]")
+    console.print("[dim]Detectando cópias idênticas e versões da mesma foto em resoluções/tamanhos reduzidos com tolerância de fuso horário...[/dim]")
+    
+    db_path = os.path.join(DBS_DIR, f"{project_name}.sqlite")
+    if not os.path.exists(db_path):
+        console.print(f"[bold red]Erro:[/bold red] O banco de dados '{db_path}' não foi encontrado. Você já indexou o projeto?")
+        return
+
+    start_time = time.time()
+    with Database(db_path) as db:
+        total_files = db.get_total_files()
+        console.print(f"[cyan]O projeto possui {total_files} arquivos indexados.[/cyan] Analisando duplicatas internas...")
+        
+        with console.status("[cyan]Executando análise intra-banco (EXIF, fusos horários e pHash sob demanda)...[/cyan]"):
+            duplicates_found = db.find_internal_duplicates()
+
+    elapsed = time.time() - start_time
+    console.print(f"\nVarredura interna concluída em {elapsed:.2f} segundos!")
+    console.print(f"Total de {len(duplicates_found)} duplicata(s) encontrada(s)!")
+
+    if duplicates_found:
+        report_name = f"{project_name}_internal"
+        json_rep, html_rep = generate_reports(report_name, total_files, duplicates_found)
+        console.print(f"\n[bold green]Relatórios de Duplicatas Internas Gerados com Sucesso![/bold green]")
+        console.print(f"JSON: [cyan]{json_rep}[/cyan]")
+        console.print(f"HTML: [cyan]{html_rep}[/cyan]")
+
+        if Confirm.ask("\n[bold cyan]Deseja abrir a Central Interativa no navegador para revisar e limpar essas duplicatas?[/bold cyan]", default=True):
+            run_dedup_webapp(initial_internal=project_name)
+    else:
+        console.print("[green]Nenhuma duplicata interna encontrada neste banco.[/green]")
+
+
+def run_compare_db(project_a: str, project_b: str, deep: bool = False):
+    mode_label = " (Modo Profundo / Qualidades & Fusos)" if deep else " (Modo Exato)"
+    console.print(f"[bold blue]Comparando Projeto '{project_a}' contra Projeto '{project_b}'{mode_label}[/bold blue]")
     
     db_a_path = os.path.join(DBS_DIR, f"{project_a}.sqlite")
     db_b_path = os.path.join(DBS_DIR, f"{project_b}.sqlite")
@@ -220,22 +255,27 @@ def run_compare_db(project_a: str, project_b: str):
         total_a = db_a.get_total_files()
         console.print(f"[cyan]O projeto A possui {total_a} arquivos indexados.[/cyan] Analisando duplicatas...")
         
-        with console.status("[cyan]Rodando query de Inner Join via SQLite...[/cyan]"):
-            duplicates_found = db_a.compare_with_db(db_b_path)
+        status_msg = "[cyan]Rodando comparação profunda entre bancos (EXIF, fusos horários e pHash)...[/cyan]" if deep else "[cyan]Rodando query de Inner Join via SQLite...[/cyan]"
+        with console.status(status_msg):
+            if deep:
+                duplicates_found = db_a.compare_with_db_deep(db_b_path)
+            else:
+                duplicates_found = db_a.compare_with_db(db_b_path)
 
     elapsed = time.time() - start_time
-    console.print(f"\nCruzamento concluído super rápido em {elapsed:.2f} segundos!")
-    console.print(f"Total de {len(duplicates_found)} duplicatas exatas encontradas!")
+    dup_type_text = "duplicatas (incluindo qualidades inferiores e fusos horários)" if deep else "duplicatas exatas"
+    console.print(f"\nCruzamento concluído em {elapsed:.2f} segundos!")
+    console.print(f"Total de {len(duplicates_found)} {dup_type_text} encontradas!")
     
     if duplicates_found:
-        report_name = f"{project_a}_vs_{project_b}"
+        report_name = f"{project_a}_vs_{project_b}" + ("_deep" if deep else "")
         json_rep, html_rep = generate_reports(report_name, total_a, duplicates_found)
         console.print(f"\n[bold green]Relatórios de Cruzamento Gerados com Sucesso![/bold green]")
         console.print(f"JSON: [cyan]{json_rep}[/cyan]")
         console.print(f"HTML: [cyan]{html_rep}[/cyan]")
 
         if Confirm.ask("\n[bold cyan]Deseja abrir a Central Interativa no navegador para revisar e apagar duplicatas?[/bold cyan]", default=True):
-            run_dedup_webapp(initial_report=os.path.basename(json_rep))
+            run_dedup_webapp(initial_safe=project_a, initial_cand=project_b, initial_deep=deep)
 
 
 def run_dashboard(project_name: str):
@@ -299,14 +339,15 @@ def interactive_mode():
     console.print("[bold cyan]--- Menu Principal ---[/bold cyan]")
     console.print(" [bold yellow][1][/bold yellow] Indexar HD Externo/Pasta (Construir Banco)")
     console.print(" [bold yellow][2][/bold yellow] Comparar Nova Pasta contra um Banco (Buscar Duplicatas)")
-    console.print(" [bold yellow][3][/bold yellow] Comparar DOIS Bancos Diferentes entre si")
-    console.print(" [bold yellow][4][/bold yellow] Gerar Relatório HTML de um Banco (Dashboard)")
-    console.print(" [bold yellow][5][/bold yellow] Abrir Central de Ação de Duplicatas (WebApp Interativo)")
-    console.print(" [bold yellow][6][/bold yellow] Sair")
+    console.print(" [bold yellow][3][/bold yellow] Buscar Duplicatas Internas no MESMO Banco (Qualidades Diferentes & Idênticas)")
+    console.print(" [bold yellow][4][/bold yellow] Comparar DOIS Bancos Diferentes entre si (Cross-DB)")
+    console.print(" [bold yellow][5][/bold yellow] Gerar Relatório HTML de um Banco (Dashboard)")
+    console.print(" [bold yellow][6][/bold yellow] Abrir Central de Ação de Duplicatas (WebApp Interativo)")
+    console.print(" [bold yellow][7][/bold yellow] Sair")
     
-    action = Prompt.ask("\nEscolha uma opção", choices=["1", "2", "3", "4", "5", "6"], default="1")
+    action = Prompt.ask("\nEscolha uma opção", choices=["1", "2", "3", "4", "5", "6", "7"], default="1")
     
-    if action == "6":
+    if action == "7":
         sys.exit(0)
         
     if action in ["1", "2"]:
@@ -320,25 +361,43 @@ def interactive_mode():
             directory = Prompt.ask("Digite o caminho da pasta nova para COMPARAR (procurar duplicatas)")
             run_compare(project, directory)
     elif action == "3":
-        project_a = ask_project("Escolha o [bold]PRIMEIRO[/bold] projeto", allow_new=False)
-        project_b = ask_project("Escolha o [bold]SEGUNDO[/bold] projeto", allow_new=False)
-        run_compare_db(project_a, project_b)
+        project = ask_project("Escolha o projeto para buscar duplicatas internas", allow_new=False)
+        run_internal(project)
     elif action == "4":
+        project_a = ask_project("Escolha o [bold]PRIMEIRO[/bold] projeto (Base Segura)", allow_new=False)
+        project_b = ask_project("Escolha o [bold]SEGUNDO[/bold] projeto (Alvo de Limpeza)", allow_new=False)
+        deep = Confirm.ask("Deseja fazer a comparação PROFUNDA (detectar fotos em menor qualidade e tolerar fusos horários)?", default=True)
+        run_compare_db(project_a, project_b, deep=deep)
+    elif action == "5":
         project = ask_project("Escolha o projeto para gerar o relatório", allow_new=False)
         run_dashboard(project)
-    elif action == "5":
+    elif action == "6":
         console.print("\n[bold cyan]--- Central de Ação de Duplicatas (WebApp) ---[/bold cyan]")
         projects = get_existing_projects()
-        if len(projects) >= 2:
-            console.print("\n[bold green]Selecione os bancos SQLite para cruzar e analisar na Central Interativa:[/bold green]")
-            safe_p = ask_project("Escolha o banco SEGURO (Preservar / Nunca apagar)", allow_new=False)
-            cand_p = ask_project("Escolha o banco CANDIDATO (Alvo de limpeza)", allow_new=False)
-            run_dedup_webapp(initial_safe=safe_p, initial_cand=cand_p)
-        elif len(projects) == 1:
-            console.print(f"[yellow]Aviso: Há apenas 1 banco indexado ('{projects[0]}'). Abrindo Central no navegador...[/yellow]")
+        if not projects:
+            console.print("[yellow]Nenhum banco indexado encontrado. Abrindo Central vazia no navegador...[/yellow]")
             run_dedup_webapp()
+            return
+            
+        console.print("Como deseja iniciar o WebApp?")
+        console.print(" [bold yellow][1][/bold yellow] Buscar Duplicatas Internas em 1 Banco (Qualidades Diferentes)")
+        console.print(" [bold yellow][2][/bold yellow] Cruzar 2 Bancos Diferentes (Base Segura vs Alvo)")
+        console.print(" [bold yellow][3][/bold yellow] Abrir navegador e selecionar livremente na tela")
+        sub_choice = Prompt.ask("Escolha o modo", choices=["1", "2", "3"], default="1")
+        
+        if sub_choice == "1":
+            p = ask_project("Escolha o banco para análise interna", allow_new=False)
+            run_dedup_webapp(initial_internal=p)
+        elif sub_choice == "2":
+            if len(projects) < 2:
+                console.print("[yellow]Aviso: É necessário ter pelo menos 2 bancos indexados para cruzar. Abrindo no modo livre...[/yellow]")
+                run_dedup_webapp()
+            else:
+                safe_p = ask_project("Escolha o banco SEGURO (Preservar / Nunca apagar)", allow_new=False)
+                cand_p = ask_project("Escolha o banco CANDIDATO (Alvo de limpeza)", allow_new=False)
+                deep = Confirm.ask("Ativar comparação profunda (resoluções menores e fusos horários)?", default=True)
+                run_dedup_webapp(initial_safe=safe_p, initial_cand=cand_p, initial_deep=deep)
         else:
-            console.print("[yellow]Nenhum banco indexado encontrado. Abrindo Central no navegador...[/yellow]")
             run_dedup_webapp()
 
 def main():
@@ -354,14 +413,20 @@ def main():
     compare_parser.add_argument("--project", required=True, help="Nome do projeto do banco (ex: hdd_antigo)")
     compare_parser.add_argument("directory", help="Caminho do diretório a comparar")
 
+    internal_parser = subparsers.add_parser("internal", help="Busca duplicatas internas no mesmo banco de dados (fotos reduzidas, comprimidas, fusos horários e idênticas)")
+    internal_parser.add_argument("--project", required=True, help="Nome do projeto do banco (ex: hdd_antigo)")
+
     compare_db_parser = subparsers.add_parser("compare-db", help="Compara dois bancos de dados SQLite entre si")
     compare_db_parser.add_argument("--proj-a", required=True, help="Nome do primeiro projeto")
     compare_db_parser.add_argument("--proj-b", required=True, help="Nome do segundo projeto")
+    compare_db_parser.add_argument("--deep", action="store_true", help="Ativa comparação profunda (qualidades diferentes, fusos horários e pHash)")
     
     webapp_parser = subparsers.add_parser("webapp", help="Inicia a Central Interativa de Ação de Duplicatas (WebApp)")
     webapp_parser.add_argument("--report", help="Nome ou caminho do relatório JSON inicial")
     webapp_parser.add_argument("--safe", help="Nome do projeto SQLite seguro (preservar)")
     webapp_parser.add_argument("--cand", help="Nome do projeto SQLite candidato (alvo de limpeza)")
+    webapp_parser.add_argument("--internal", help="Nome do projeto para carregar duplicatas internas no WebApp")
+    webapp_parser.add_argument("--deep", action="store_true", help="Ativa comparação profunda no cruzamento de bancos")
     webapp_parser.add_argument("--port", type=int, default=8555, help="Porta HTTP do servidor local (padrão: 8555)")
 
     args = parser.parse_args()
@@ -371,10 +436,19 @@ def main():
             run_index(args.project, args.directory)
         elif args.command == "compare":
             run_compare(args.project, args.directory)
+        elif args.command == "internal":
+            run_internal(args.project)
         elif args.command == "compare-db":
-            run_compare_db(args.proj_a, args.proj_b)
+            run_compare_db(args.proj_a, args.proj_b, deep=args.deep)
         elif args.command == "webapp":
-            run_dedup_webapp(port=args.port, initial_report=args.report, initial_safe=args.safe, initial_cand=args.cand)
+            run_dedup_webapp(
+                port=args.port,
+                initial_report=args.report,
+                initial_safe=args.safe,
+                initial_cand=args.cand,
+                initial_internal=args.internal,
+                initial_deep=args.deep
+            )
         elif not args.command:
             interactive_mode()
     except KeyboardInterrupt:

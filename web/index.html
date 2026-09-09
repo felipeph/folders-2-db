@@ -727,6 +727,34 @@
       gap: 10px;
     }
 
+    /* Tabs no Modal */
+    .modal-tabs {
+      display: flex;
+      border-bottom: 1px solid var(--border);
+      background: #f8fafc;
+    }
+    .modal-tab-btn {
+      flex: 1;
+      padding: 10px 12px;
+      font-size: 11.5px;
+      font-weight: 700;
+      color: var(--text-muted);
+      border: none;
+      background: none;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      transition: all 0.15s;
+    }
+    .modal-tab-btn.active {
+      color: var(--primary);
+      border-bottom-color: var(--primary);
+      background: #ffffff;
+    }
+    .modal-tab-btn:hover:not(.active) {
+      color: var(--text-main);
+      background: #f1f5f9;
+    }
+
     /* Lightbox Modal */
     .lightbox-overlay {
       position: fixed;
@@ -796,6 +824,8 @@
 
       <!-- Diff Strip Minimalista no Header -->
       <div class="diff-header-strip" id="diffHeaderStrip" style="display: none;">
+        <span class="diff-pill match" id="pillQualityBadge">🛡️ Qualidade</span>
+        <span class="diff-pill match" id="pillTzShift" style="display: none;">⏰ Fuso Horário</span>
         <span class="diff-pill match" id="pillSizeMatch" title="Assinatura e tamanho exatos">🟢 Conteúdo Idêntico</span>
         <span class="diff-pill" id="pillNameMatch">🟢 Nomes Idênticos</span>
         <span class="diff-pill" id="pillDateMatch">🟢 Datas Idênticas</span>
@@ -804,10 +834,15 @@
 
     <!-- Header Direita: Filtro Rápido e Contador de Marcados -->
     <div class="header-right">
+      <select class="filter-select" id="filterDupType" onchange="applyFilters()" style="margin-right: 4px;">
+        <option value="all" selected>Todas as Duplicatas</option>
+        <option value="quality">Fotos Redimensionadas (Qualidade)</option>
+        <option value="exact">Duplicatas 100% Idênticas</option>
+      </select>
       <select class="filter-select" id="filterType" onchange="applyFilters()">
-        <option value="all" selected>Todos os Tipos</option>
-        <option value="video">Apenas Vídeos</option>
+        <option value="all" selected>Todas as Mídias</option>
         <option value="image">Apenas Imagens</option>
+        <option value="video">Apenas Vídeos</option>
         <option value="huge">&gt; 100 MB</option>
       </select>
       <div class="stat-marked" id="statMarkedPill">
@@ -855,17 +890,22 @@
             <div class="file-name-row" id="safeFileName">Nome do arquivo</div>
           </div>
 
-          <!-- Linha de Metadados (Data e Tamanho) com Indicadores -->
-          <div class="file-meta-grid">
+          <!-- Linha de Metadados (Resolução, Tamanho e Data) com Indicadores -->
+          <div class="file-meta-grid" style="grid-template-columns: 1fr 1fr 1fr;">
             <div class="meta-item">
-              <span class="meta-label">Data:</span>
-              <span class="meta-value" id="safeFileDate">--/--/---- --:--</span>
-              <span class="diff-indicator-inline match" id="safeDateDiff">🟢 Igual</span>
+              <span class="meta-label">Resolução:</span>
+              <span class="meta-value" id="safeResolution">-- MP</span>
+              <span class="diff-indicator-inline match" id="safeResBadge">🛡️ Original</span>
             </div>
             <div class="meta-item">
               <span class="meta-label">Tamanho:</span>
               <span class="meta-value" id="safeFileSize">0 B</span>
-              <span class="diff-indicator-inline match">🟢 Idêntico</span>
+              <span class="diff-indicator-inline match" id="safeSizeBadge">🟢 Maior</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Data:</span>
+              <span class="meta-value" id="safeFileDate">--/--/---- --:--</span>
+              <span class="diff-indicator-inline match" id="safeDateDiff">🟢 Igual</span>
             </div>
           </div>
 
@@ -903,17 +943,22 @@
             <div class="file-name-row" id="candFileName">Nome do arquivo</div>
           </div>
 
-          <!-- Linha de Metadados (Data e Tamanho) com Indicadores -->
-          <div class="file-meta-grid">
+          <!-- Linha de Metadados (Resolução, Tamanho e Data) com Indicadores -->
+          <div class="file-meta-grid" style="grid-template-columns: 1fr 1fr 1fr;">
             <div class="meta-item">
-              <span class="meta-label">Data:</span>
-              <span class="meta-value" id="candFileDate">--/--/---- --:--</span>
-              <span class="diff-indicator-inline match" id="candDateDiff">🟢 Igual</span>
+              <span class="meta-label">Resolução:</span>
+              <span class="meta-value" id="candResolution">-- MP</span>
+              <span class="diff-indicator-inline mismatch" id="candResBadge">🗑️ Reduzida</span>
             </div>
             <div class="meta-item">
               <span class="meta-label">Tamanho:</span>
               <span class="meta-value" id="candFileSize">0 B</span>
-              <span class="diff-indicator-inline match">🟢 Idêntico</span>
+              <span class="diff-indicator-inline mismatch" id="candSizeBadge">🔴 Menor</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">Data:</span>
+              <span class="meta-value" id="candFileDate">--/--/---- --:--</span>
+              <span class="diff-indicator-inline match" id="candDateDiff">🟢 Igual</span>
             </div>
           </div>
 
@@ -951,30 +996,58 @@
   <div class="modal-overlay" id="settingsModal">
     <div class="modal-box">
       <div class="modal-top">
-        <h3>Configurar Bancos da Sessão</h3>
+        <h3>Configurar Central de Duplicatas</h3>
         <button onclick="closeSettingsModal()" style="background: none; border: none; font-size: 20px; cursor: pointer;">&times;</button>
       </div>
+      <div class="modal-tabs">
+        <button class="modal-tab-btn active" id="tabBtnInternal" onclick="switchModalTab('internal')">🔍 Duplicatas no Mesmo Banco</button>
+        <button class="modal-tab-btn" id="tabBtnCross" onclick="switchModalTab('cross')">⚡ Cruzar 2 Bancos</button>
+        <button class="modal-tab-btn" id="tabBtnReport" onclick="switchModalTab('report')">📄 Relatório Salvo</button>
+      </div>
       <div class="modal-body">
-        <div class="form-group">
-          <label>🛡️ Lado Seguro (Preservar / Nunca Apagar):</label>
-          <select id="selSafeDb" onchange="document.getElementById('selReportFile').value = '';"></select>
+        <!-- Aba 1: Duplicatas Internas (1 Banco) -->
+        <div id="tabContentInternal">
+          <div class="form-group">
+            <label>Escolha o Banco de Dados para Analisar:</label>
+            <select id="selInternalDb"></select>
+          </div>
+          <div style="font-size: 12px; color: var(--text-muted); line-height: 1.5; margin-top: 6px; background: #f8fafc; border: 1px solid var(--border); padding: 12px; border-radius: 8px;">
+            💡 <strong>Deduplicação Inteligente:</strong> Encontra fotos redimensionadas, resoluções reduzidas, edições, diferenças de fuso horário (&plusmn;1h) e arquivos idênticos no mesmo acervo. O sistema elege a foto de <strong>maior qualidade</strong> como Segura e sugere as outras para descarte.
+          </div>
         </div>
-        <div style="text-align: center;">
-          <button class="btn-os-action" onclick="swapModalSides()">⇄ Inverter Lados</button>
+
+        <!-- Aba 2: Cruzar 2 Bancos -->
+        <div id="tabContentCross" style="display: none;">
+          <div class="form-group">
+            <label>🛡️ Lado Seguro (Preservar / Nunca Apagar):</label>
+            <select id="selSafeDb"></select>
+          </div>
+          <div style="text-align: center; margin: 4px 0;">
+            <button class="btn-os-action" onclick="swapModalSides()">⇄ Inverter Lados</button>
+          </div>
+          <div class="form-group">
+            <label>🗑️ Lado Candidato (Alvo de Limpeza):</label>
+            <select id="selCandDb"></select>
+          </div>
+          <div style="margin-top: 8px; background: #f8fafc; border: 1px solid var(--border); padding: 10px; border-radius: 8px;">
+            <label style="display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 600; cursor: pointer;">
+              <input type="checkbox" id="chkDeepCompare" checked>
+              <span>Ativar Varredura Aprofundada (Fotos Redimensionadas & Fuso Horário)</span>
+            </label>
+          </div>
         </div>
-        <div class="form-group">
-          <label>🗑️ Lado Candidato (Alvo de Limpeza):</label>
-          <select id="selCandDb" onchange="document.getElementById('selReportFile').value = '';"></select>
-        </div>
-        <div style="border-top: 1px solid var(--border); margin: 6px 0;"></div>
-        <div class="form-group">
-          <label>Ou carregar Relatório Salvo (.json):</label>
-          <select id="selReportFile"></select>
+
+        <!-- Aba 3: Relatório JSON -->
+        <div id="tabContentReport" style="display: none;">
+          <div class="form-group">
+            <label>Carregar Relatório Salvo (.json):</label>
+            <select id="selReportFile"></select>
+          </div>
         </div>
       </div>
       <div class="modal-actions">
         <button class="btn-os-action" onclick="closeSettingsModal()">Cancelar</button>
-        <button class="btn-os-action" style="background: var(--primary); color: white; border: none;" onclick="applySessionChange()">Carregar Sessão</button>
+        <button class="btn-os-action" id="btnApplySession" style="background: var(--primary); color: white; border: none;" onclick="applySessionChange()">Iniciar Análise</button>
       </div>
     </div>
   </div>
@@ -1105,17 +1178,27 @@
     }
 
     function applyFilters() {
-      const filter = document.getElementById('filterType').value;
-      if (filter === 'all') {
-        filteredDuplicates = allDuplicates.slice();
-      } else if (filter === 'video') {
-        filteredDuplicates = allDuplicates.filter(d => d.media_type === 'video');
-      } else if (filter === 'image') {
-        filteredDuplicates = allDuplicates.filter(d => d.media_type === 'image');
-      } else if (filter === 'huge') {
+      const mediaFilter = document.getElementById('filterType').value;
+      const dupFilter = document.getElementById('filterDupType') ? document.getElementById('filterDupType').value : 'all';
+
+      let items = allDuplicates.slice();
+
+      if (mediaFilter === 'video') {
+        items = items.filter(d => d.media_type === 'video');
+      } else if (mediaFilter === 'image') {
+        items = items.filter(d => d.media_type === 'image');
+      } else if (mediaFilter === 'huge') {
         const min100 = 100 * 1024 * 1024;
-        filteredDuplicates = allDuplicates.filter(d => d.size_bytes >= min100);
+        items = items.filter(d => d.size_bytes >= min100);
       }
+
+      if (dupFilter === 'quality') {
+        items = items.filter(d => d.duplicate_type === 'quality_diff');
+      } else if (dupFilter === 'exact') {
+        items = items.filter(d => d.duplicate_type === 'exact');
+      }
+
+      filteredDuplicates = items;
       currentIndex = 0;
       renderCurrentItem();
       updateMarkedStats();
@@ -1178,10 +1261,83 @@
       candDateDiff.className = 'diff-indicator-inline ' + (dateMatch ? 'match' : 'mismatch');
       candDateDiff.innerHTML = dateMatch ? '🟢 Igual' : '🔴 Diferente';
 
+      // Diff Status: Resolução e Qualidade
+      const safeW = item.safe_width || 0;
+      const safeH = item.safe_height || 0;
+      const safeMp = item.safe_mp || 0;
+      const candW = item.cand_width || 0;
+      const candH = item.cand_height || 0;
+      const candMp = item.cand_mp || 0;
+
+      const safeResEl = document.getElementById('safeResolution');
+      const candResEl = document.getElementById('candResolution');
+      const safeResBadge = document.getElementById('safeResBadge');
+      const candResBadge = document.getElementById('candResBadge');
+      const safeSizeBadge = document.getElementById('safeSizeBadge');
+      const candSizeBadge = document.getElementById('candSizeBadge');
+
+      if (safeResEl) safeResEl.innerText = (safeW && safeH) ? `${safeW}×${safeH} (${safeMp} MP)` : (item.safe_size_human || 'Original');
+      if (candResEl) candResEl.innerText = (candW && candH) ? `${candW}×${candH} (${candMp} MP)` : (item.cand_size_human || 'Cópia');
+
+      const isQualityDiff = (item.duplicate_type === 'quality_diff');
+
+      if (safeResBadge && candResBadge) {
+        if (isQualityDiff) {
+          safeResBadge.className = 'diff-indicator-inline match';
+          safeResBadge.innerText = '🛡️ Original';
+          candResBadge.className = 'diff-indicator-inline mismatch';
+          candResBadge.innerText = item.quality_label || '🗑️ Reduzida';
+        } else {
+          safeResBadge.className = 'diff-indicator-inline match';
+          safeResBadge.innerText = '🟢 Igual';
+          candResBadge.className = 'diff-indicator-inline match';
+          candResBadge.innerText = '🟢 Igual';
+        }
+      }
+
+      if (safeSizeBadge && candSizeBadge) {
+        if (item.cand_size_bytes < item.safe_size_bytes) {
+          safeSizeBadge.className = 'diff-indicator-inline match';
+          safeSizeBadge.innerText = '🟢 Maior';
+          candSizeBadge.className = 'diff-indicator-inline mismatch';
+          candSizeBadge.innerText = '🔴 Menor';
+        } else {
+          safeSizeBadge.className = 'diff-indicator-inline match';
+          safeSizeBadge.innerText = '🟢 Igual';
+          candSizeBadge.className = 'diff-indicator-inline match';
+          candSizeBadge.innerText = '🟢 Igual';
+        }
+      }
+
+      // Diff Header Pills
+      const pillQuality = document.getElementById('pillQualityBadge');
+      if (pillQuality) {
+        if (isQualityDiff) {
+          pillQuality.style.display = 'inline-flex';
+          pillQuality.className = 'diff-pill mismatch';
+          pillQuality.innerHTML = `⚠️ Qualidades Diferentes (${item.quality_label || 'Reduzida'})`;
+        } else {
+          pillQuality.style.display = 'inline-flex';
+          pillQuality.className = 'diff-pill match';
+          pillQuality.innerHTML = '🟢 Conteúdo Idêntico';
+        }
+      }
+
+      const pillTz = document.getElementById('pillTzShift');
+      if (pillTz) {
+        if (item.tz_shifted) {
+          pillTz.style.display = 'inline-flex';
+          const sign = item.shift_hours > 0 ? `+${item.shift_hours}h` : `${item.shift_hours}h`;
+          pillTz.innerHTML = `⏰ Fuso Horário (${sign})`;
+        } else {
+          pillTz.style.display = 'none';
+        }
+      }
+
       document.getElementById('safeFileDate').innerText = item.date_safe || 'Não informada';
       document.getElementById('candFileDate').innerText = item.date_cand || 'Não informada';
-      document.getElementById('safeFileSize').innerText = item.size_human;
-      document.getElementById('candFileSize').innerText = item.size_human;
+      document.getElementById('safeFileSize').innerText = item.safe_size_human || item.size_human;
+      document.getElementById('candFileSize').innerText = item.cand_size_human || item.size_human;
 
       // Caminhos
       document.getElementById('safeFilePath').innerText = item.safe_path;
@@ -1414,23 +1570,61 @@
     }
 
     // Modal de Configurações
+    let currentModalTab = 'internal';
+
     function openSettingsModal() {
       document.getElementById('settingsModal').classList.add('open');
     }
     function closeSettingsModal() {
       document.getElementById('settingsModal').classList.remove('open');
     }
+
+    function switchModalTab(tab) {
+      currentModalTab = tab;
+      const btnInt = document.getElementById('tabBtnInternal');
+      const btnCross = document.getElementById('tabBtnCross');
+      const btnRep = document.getElementById('tabBtnReport');
+
+      const cInt = document.getElementById('tabContentInternal');
+      const cCross = document.getElementById('tabContentCross');
+      const cRep = document.getElementById('tabContentReport');
+
+      const btnApply = document.getElementById('btnApplySession');
+
+      btnInt.classList.toggle('active', tab === 'internal');
+      btnCross.classList.toggle('active', tab === 'cross');
+      btnRep.classList.toggle('active', tab === 'report');
+
+      cInt.style.display = tab === 'internal' ? 'block' : 'none';
+      cCross.style.display = tab === 'cross' ? 'block' : 'none';
+      cRep.style.display = tab === 'report' ? 'block' : 'none';
+
+      if (tab === 'internal') {
+        btnApply.innerText = 'Iniciar Análise Interna';
+      } else if (tab === 'cross') {
+        btnApply.innerText = 'Cruzar Bancos';
+      } else {
+        btnApply.innerText = 'Carregar Relatório';
+      }
+    }
+
     function populateModalSelects(dbs, reports) {
+      const sInt = document.getElementById('selInternalDb');
       const sSafe = document.getElementById('selSafeDb');
       const sCand = document.getElementById('selCandDb');
       const sRep = document.getElementById('selReportFile');
 
+      if (sInt) sInt.innerHTML = '';
       sSafe.innerHTML = '';
       sCand.innerHTML = '';
+
       (dbs || []).forEach((db, i) => {
-        sSafe.innerHTML += `<option value="${db.name}">${db.name} (${db.size_human})</option>`;
-        sCand.innerHTML += `<option value="${db.name}">${db.name} (${db.size_human})</option>`;
+        const opt = `<option value="${db.name}">${db.name} (${db.size_human})</option>`;
+        if (sInt) sInt.innerHTML += opt;
+        sSafe.innerHTML += opt;
+        sCand.innerHTML += opt;
       });
+
       if ((dbs || []).length >= 2) {
         sSafe.selectedIndex = 0;
         sCand.selectedIndex = 1;
@@ -1451,29 +1645,75 @@
     }
 
     async function applySessionChange() {
-      const repFile = document.getElementById('selReportFile').value;
-      if (repFile) {
-        await fetch('/api/session/init', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ mode: 'report', report_file: repFile })
-        });
-      } else {
-        const safeP = document.getElementById('selSafeDb').value;
-        const candP = document.getElementById('selCandDb').value;
-        if (safeP === candP) {
-          alert('Lado Seguro e Candidato não podem ser iguais.');
-          return;
+      const btnApply = document.getElementById('btnApplySession');
+      btnApply.disabled = true;
+      btnApply.innerText = 'Processando...';
+
+      try {
+        if (currentModalTab === 'internal') {
+          const proj = document.getElementById('selInternalDb').value;
+          if (!proj) {
+            alert('Por favor, selecione um banco de dados.');
+            return;
+          }
+          const res = await fetch('/api/session/init', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ mode: 'internal_db', project: proj })
+          });
+          const data = await res.json();
+          if (!data.success) {
+            alert(data.error || 'Erro ao iniciar análise interna.');
+            return;
+          }
+        } else if (currentModalTab === 'cross') {
+          const safeP = document.getElementById('selSafeDb').value;
+          const candP = document.getElementById('selCandDb').value;
+          const deepComp = document.getElementById('chkDeepCompare') ? document.getElementById('chkDeepCompare').checked : false;
+
+          if (safeP === candP) {
+            alert('Lado Seguro e Candidato não podem ser iguais.');
+            return;
+          }
+          const res = await fetch('/api/session/init', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ mode: 'live_db', safe_project: safeP, cand_project: candP, deep_comparison: deepComp })
+          });
+          const data = await res.json();
+          if (!data.success) {
+            alert(data.error || 'Erro ao inicializar cruzamento.');
+            return;
+          }
+        } else if (currentModalTab === 'report') {
+          const repFile = document.getElementById('selReportFile').value;
+          if (!repFile) {
+            alert('Por favor, selecione um relatório salvo.');
+            return;
+          }
+          const res = await fetch('/api/session/init', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ mode: 'report', report_file: repFile })
+          });
+          const data = await res.json();
+          if (!data.success) {
+            alert(data.error || 'Erro ao carregar relatório.');
+            return;
+          }
         }
-        await fetch('/api/session/init', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ mode: 'live_db', safe_project: safeP, cand_project: candP })
-        });
+
+        closeSettingsModal();
+        markedPaths.clear();
+        await loadSessionDuplicates();
+      } catch (err) {
+        alert('Erro ao se comunicar com o servidor.');
+      } finally {
+        btnApply.disabled = false;
+        if (currentModalTab === 'internal') btnApply.innerText = 'Iniciar Análise Interna';
+        else if (currentModalTab === 'cross') btnApply.innerText = 'Cruzar Bancos';
+        else btnApply.innerText = 'Carregar Relatório';
       }
-      closeSettingsModal();
-      markedPaths.clear();
-      await loadSessionDuplicates();
     }
 
     // Lightbox
