@@ -4,8 +4,13 @@ import os
 import re
 import itertools
 import contextlib
+import time
+import concurrent.futures
 from typing import Dict, Any, List, Optional, Tuple, Callable
 from metadata import extract_core_exif, compute_phash, hamming_distance, is_same_capture_time, are_same_photo_or_variant
+
+IMAGE_EXTENSIONS_TUPLE = ('.jpg', '.jpeg', '.png', '.webp', '.bmp', '.tiff', '.tif', '.heic', '.heif')
+IMAGE_EXTENSIONS_SQL = " OR ".join([f"filename LIKE '%{ext}'" for ext in IMAGE_EXTENSIONS_TUPLE])
 
 def rank_file_quality(file_dict: Dict[str, Any]) -> Tuple:
     """
@@ -53,7 +58,9 @@ class Database:
                         exif_date TEXT,
                         camera_model TEXT,
                         phash TEXT,
-                        scanned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                        scanned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        deleted_at TIMESTAMP,
+                        deleted_reason TEXT
                     )
                 ''')
                 # Índices para acelerar a busca de duplicatas
@@ -72,7 +79,9 @@ class Database:
             ("img_height", "INTEGER"),
             ("exif_date", "TEXT"),
             ("camera_model", "TEXT"),
-            ("phash", "TEXT")
+            ("phash", "TEXT"),
+            ("deleted_at", "TIMESTAMP"),
+            ("deleted_reason", "TEXT")
         ]
         for col_name, col_type in new_cols:
             if col_name not in existing_cols:
@@ -121,6 +130,126 @@ class Database:
         except sqlite3.Error:
             pass
 
+    def get_pending_phash_count(self) -> int:
+        """Retorna o total de arquivos de imagem elegíveis com pHash ainda não calculado."""
+        cursor = self.conn.cursor()
+        cursor.execute(f'''
+            SELECT COUNT(*) FROM files 
+            WHERE (phash IS NULL OR phash = '')
+            AND ({IMAGE_EXTENSIONS_SQL})
+            AND deleted_at IS NULL
+        ''')
+        return cursor.fetchone()[0]
+
+    def populate_phashes(
+        self,
+        max_workers: int = 8,
+        batch_size: int = 500,
+        progress_callback: Optional[Callable[[int, str, int, int], None]] = None,
+        stop_event: Optional[Any] = None
+    ) -> Dict[str, int]:
+        """
+        Calcula e salva o pHash para todas as imagens elegíveis pendentes no banco.
+        Opera em lotes com ThreadPoolExecutor e salva periodicamente (Resume-by-Design).
+        """
+        total_pending = self.get_pending_phash_count()
+        if total_pending == 0:
+            return {"processed": 0, "success": 0, "errors": 0, "remaining": 0}
+
+        # Pre-flight check: verificar se os primeiros caminhos são acessíveis no disco
+        cursor = self.conn.cursor()
+        cursor.execute(f'''
+            SELECT filepath FROM files 
+            WHERE (phash IS NULL OR phash = '')
+            AND ({IMAGE_EXTENSIONS_SQL})
+            LIMIT 20
+        ''')
+        sample_paths = [r[0] for r in cursor.fetchall()]
+        if sample_paths:
+            accessible_count = sum(1 for p in sample_paths if os.path.exists(p))
+            if accessible_count == 0:
+                first_path = sample_paths[0]
+                drive_or_root = os.path.splitdrive(first_path)[0] or os.path.dirname(first_path)
+                if drive_or_root and not os.path.exists(drive_or_root):
+                    raise FileNotFoundError(
+                        f"O drive ou diretório '{drive_or_root}' não está montado ou acessível. "
+                        f"Conecte o dispositivo antes de calcular os hashes para evitar erros em massa."
+                    )
+
+        processed_count = 0
+        success_count = 0
+        error_count = 0
+
+        def _hash_worker(item: Tuple[int, str]) -> Tuple[int, str, str]:
+            row_id, filepath = item
+            try:
+                h = compute_phash(filepath)
+                if h and len(h) == 16:
+                    return row_id, h, filepath
+                else:
+                    return row_id, "error", filepath
+            except Exception:
+                return row_id, "error", filepath
+
+        updates = []
+        executor = concurrent.futures.ThreadPoolExecutor(max_workers=max_workers)
+        try:
+            while True:
+                if stop_event and stop_event.is_set():
+                    break
+
+                cursor.execute(f'''
+                    SELECT id, filepath FROM files 
+                    WHERE (phash IS NULL OR phash = '')
+                    AND ({IMAGE_EXTENSIONS_SQL})
+                    AND deleted_at IS NULL
+                    LIMIT ?
+                ''', (batch_size,))
+                batch = cursor.fetchall()
+                if not batch:
+                    break
+
+                updates = []
+                for row_id, h, path in executor.map(_hash_worker, batch):
+                    updates.append((h, row_id))
+                    processed_count += 1
+                    if h != "error":
+                        success_count += 1
+                    else:
+                        error_count += 1
+
+                    if progress_callback:
+                        progress_callback(1, path, success_count, error_count)
+
+                cursor.executemany('UPDATE files SET phash = ? WHERE id = ?', updates)
+                self.conn.commit()
+                updates = []
+
+                if len(batch) < batch_size:
+                    break
+        except KeyboardInterrupt:
+            if updates:
+                try:
+                    cursor.executemany('UPDATE files SET phash = ? WHERE id = ?', updates)
+                    self.conn.commit()
+                except Exception:
+                    pass
+            executor.shutdown(wait=False, cancel_futures=True)
+            raise
+        finally:
+            try:
+                executor.shutdown(wait=False)
+            except Exception:
+                pass
+
+        remaining = self.get_pending_phash_count()
+        return {
+            "processed": processed_count,
+            "success": success_count,
+            "errors": error_count,
+            "remaining": remaining
+        }
+
     def ensure_exif_columns_populated(self, progress_callback: Optional[Callable[[str], None]] = None, batch_size: int = 25000) -> int:
         """
         Preenche as colunas img_width, img_height, exif_date, camera_model
@@ -135,6 +264,7 @@ class Database:
                 SELECT id, exif_data 
                 FROM files 
                 WHERE exif_date IS NULL AND exif_data IS NOT NULL AND length(exif_data) > 20
+                AND deleted_at IS NULL
                 LIMIT ?
             ''', (batch_size,))
             rows = cursor.fetchall()
@@ -169,9 +299,11 @@ class Database:
 
     def commit(self):
         """Salva a transação atual."""
-        if self.batch_count > 0:
+        try:
             self.conn.commit()
-            self.batch_count = 0
+        except sqlite3.Error:
+            pass
+        self.batch_count = 0
 
     def file_exists(self, filepath: str, size_bytes: int, mtime: float) -> bool:
         """
@@ -180,7 +312,7 @@ class Database:
         """
         cursor = self.conn.cursor()
         cursor.execute('''
-            SELECT size_bytes, mtime FROM files WHERE filepath = ?
+            SELECT size_bytes, mtime FROM files WHERE filepath = ? AND deleted_at IS NULL
         ''', (filepath,))
         row = cursor.fetchone()
         if row:
@@ -197,7 +329,7 @@ class Database:
         cursor = self.conn.cursor()
         cursor.execute('''
             SELECT filepath FROM files 
-            WHERE size_bytes = ? AND partial_hash = ?
+            WHERE size_bytes = ? AND partial_hash = ? AND deleted_at IS NULL
         ''', (size_bytes, partial_hash))
         row = cursor.fetchone()
         return row[0] if row else None
@@ -215,6 +347,7 @@ class Database:
                 FROM files a 
                 INNER JOIN db_b.files b 
                 ON a.size_bytes = b.size_bytes AND a.partial_hash = b.partial_hash
+                WHERE a.deleted_at IS NULL AND b.deleted_at IS NULL
             ''')
             
             duplicates = []
@@ -273,7 +406,7 @@ class Database:
         cursor.execute('''
             SELECT size_bytes, partial_hash, COUNT(*) as cnt
             FROM files
-            WHERE size_bytes > 0 AND partial_hash IS NOT NULL AND partial_hash != '' AND partial_hash != 'error_reading_file'
+            WHERE size_bytes > 0 AND partial_hash IS NOT NULL AND partial_hash != '' AND partial_hash != 'error_reading_file' AND deleted_at IS NULL
             GROUP BY size_bytes, partial_hash
             HAVING cnt > 1
         ''')
@@ -283,7 +416,7 @@ class Database:
             cursor.execute('''
                 SELECT filepath, filename, size_bytes, mtime, img_width, img_height, exif_date, phash
                 FROM files
-                WHERE size_bytes = ? AND partial_hash = ?
+                WHERE size_bytes = ? AND partial_hash = ? AND deleted_at IS NULL
             ''', (size_bytes, partial_hash))
             files = [
                 {
@@ -338,7 +471,7 @@ class Database:
                        substr(exif_date, 1, 10) as ymd, camera_model, substr(exif_date, 15, 5) as mmss,
                        COUNT(*) OVER (PARTITION BY substr(exif_date, 1, 10), camera_model, substr(exif_date, 15, 5)) as grp_cnt
                 FROM files
-                WHERE exif_date IS NOT NULL AND length(exif_date) >= 19 AND camera_model IS NOT NULL
+                WHERE exif_date IS NOT NULL AND length(exif_date) >= 19 AND camera_model IS NOT NULL AND deleted_at IS NULL
             )
             WHERE grp_cnt > 1
             ORDER BY ymd, camera_model, mmss
@@ -480,6 +613,7 @@ class Database:
                 FROM files a 
                 INNER JOIN db_b.files b 
                 ON a.size_bytes = b.size_bytes AND a.partial_hash = b.partial_hash
+                WHERE a.deleted_at IS NULL AND b.deleted_at IS NULL
             ''')
 
             handled_cands = set()
@@ -518,6 +652,7 @@ class Database:
                 AND substr(a.exif_date, 1, 10) = substr(b.exif_date, 1, 10)
                 AND substr(a.exif_date, 15, 5) = substr(b.exif_date, 15, 5)
                 WHERE a.camera_model IS NOT NULL AND a.exif_date IS NOT NULL AND b.exif_date IS NOT NULL
+                AND a.deleted_at IS NULL AND b.deleted_at IS NULL
                 AND NOT (a.size_bytes = b.size_bytes AND a.partial_hash = b.partial_hash)
             ''')
 
@@ -577,13 +712,13 @@ class Database:
         finally:
             cursor.execute("DETACH DATABASE db_b")
 
-    def delete_file(self, filepath: str) -> bool:
+    def delete_file(self, filepath: str, reason: str = 'webapp_batch_delete') -> bool:
         """
-        Remove o registro de um arquivo do banco de dados (usado após exclusão no disco).
-        Retorna True se removeu, False se não existia.
+        Marca o arquivo como deletado (Soft Delete) no banco de dados.
+        Retorna True se afetou alguma linha.
         """
         cursor = self.conn.cursor()
-        cursor.execute('DELETE FROM files WHERE filepath = ?', (filepath,))
+        cursor.execute('UPDATE files SET deleted_at = CURRENT_TIMESTAMP, deleted_reason = ? WHERE filepath = ? AND deleted_at IS NULL', (reason, filepath))
         self.conn.commit()
         return cursor.rowcount > 0
 
@@ -595,7 +730,7 @@ class Database:
         cursor.execute('''
             SELECT id, filepath, filename, size_bytes, mtime, partial_hash, exif_data, scanned_at,
                    img_width, img_height, exif_date, camera_model, phash
-            FROM files WHERE filepath = ?
+            FROM files WHERE filepath = ? AND deleted_at IS NULL
         ''', (filepath,))
         row = cursor.fetchone()
         if not row:
@@ -626,7 +761,7 @@ class Database:
         placeholders = ','.join(['?'] * len(filepaths))
         cursor.execute(f'''
             SELECT filepath, filename, size_bytes, mtime, exif_data, img_width, img_height, exif_date, camera_model
-            FROM files WHERE filepath IN ({placeholders})
+            FROM files WHERE filepath IN ({placeholders}) AND deleted_at IS NULL
         ''', filepaths)
         result = {}
         for row in cursor.fetchall():
@@ -644,7 +779,7 @@ class Database:
 
     def get_total_files(self) -> int:
         cursor = self.conn.cursor()
-        cursor.execute('SELECT COUNT(*) FROM files')
+        cursor.execute('SELECT COUNT(*) FROM files WHERE deleted_at IS NULL')
         return cursor.fetchone()[0]
 
     def close(self):

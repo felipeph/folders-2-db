@@ -560,6 +560,77 @@ async def api_get_duplicates(request: Request):
         "items": page_items
     })
 
+async def api_get_folder_duplicates(request: Request):
+    """
+    Agrupa as duplicatas pelo diretório do arquivo candidato e do arquivo original/seguro.
+    Retorna uma lista de grupos ordenados.
+    """
+    params = request.query_params
+    sort_by = params.get("sort", "size_desc")
+    media_filter = params.get("type", "all")
+    dup_type = params.get("dup_type", "all")
+    search = params.get("search", "").strip().lower()
+
+    items = [d for d in CURRENT_SESSION["duplicates"] if not d["deleted"]]
+
+    if media_filter != "all":
+        items = [d for d in items if d["media_type"] == media_filter]
+
+    if dup_type == "quality":
+        items = [d for d in items if d.get("duplicate_type") == "quality_diff"]
+    elif dup_type == "exact":
+        items = [d for d in items if d.get("duplicate_type") == "exact"]
+
+    if search:
+        items = [
+            d for d in items 
+            if search in d["safe_path"].lower() or search in d["cand_path"].lower()
+        ]
+
+    # Grouping
+    groups = {}
+    for item in items:
+        cand_folder = os.path.dirname(item["cand_path"])
+        safe_folder = os.path.dirname(item["safe_path"])
+        key = (cand_folder, safe_folder)
+        
+        if key not in groups:
+            groups[key] = {
+                "id": str(hash(key)),
+                "cand_folder": cand_folder,
+                "safe_folder": safe_folder,
+                "file_count": 0,
+                "wasted_bytes": 0,
+                "items": []
+            }
+        
+        groups[key]["file_count"] += 1
+        groups[key]["wasted_bytes"] += item["size_bytes"]
+        groups[key]["items"].append(item)
+
+    groups_list = list(groups.values())
+
+    for g in groups_list:
+        g["wasted_human"] = format_bytes(g["wasted_bytes"])
+
+    # Sorting
+    if sort_by == "size_desc":
+        groups_list.sort(key=lambda x: x["wasted_bytes"], reverse=True)
+    elif sort_by == "size_asc":
+        groups_list.sort(key=lambda x: x["wasted_bytes"], reverse=False)
+    elif sort_by == "count_desc":
+        groups_list.sort(key=lambda x: x["file_count"], reverse=True)
+    elif sort_by == "path":
+        groups_list.sort(key=lambda x: x["cand_folder"].lower())
+
+    return JSONResponse({
+        "total_groups": len(groups_list),
+        "total_wasted_human": format_bytes(CURRENT_SESSION["total_wasted_bytes"]),
+        "safe_project": CURRENT_SESSION["safe_project"],
+        "cand_project": CURRENT_SESSION["cand_project"],
+        "groups": groups_list
+    })
+
 async def api_thumbnail(request: Request):
     """Endpoint de thumbnail com cache em disco e alta performance."""
     filepath = request.query_params.get("path")
@@ -718,6 +789,7 @@ routes = [
     Route("/api/session/init", endpoint=api_init_session, methods=["POST"]),
     Route("/api/session/swap", endpoint=api_swap_sides, methods=["POST"]),
     Route("/api/duplicates", endpoint=api_get_duplicates, methods=["GET"]),
+    Route("/api/duplicates/folders", endpoint=api_get_folder_duplicates, methods=["GET"]),
     Route("/api/thumbnail", endpoint=api_thumbnail, methods=["GET"]),
     Route("/api/media", endpoint=api_media, methods=["GET"]),
     Route("/api/reveal", endpoint=api_reveal_explorer, methods=["POST"]),

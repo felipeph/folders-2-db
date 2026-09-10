@@ -2,7 +2,7 @@ import argparse
 import sys
 import os
 import time
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
 # Garante saída UTF-8 no terminal Windows
 if sys.platform == "win32":
@@ -294,6 +294,82 @@ def run_dashboard(project_name: str):
         webbrowser.open(f"file://{os.path.abspath(html_path)}")
 
 
+def run_compute_phash(project_name: Optional[str] = None, all_projects: bool = False, workers: int = 8, batch_size: int = 500):
+    """
+    Executa o pipeline de cálculo em lote de pHash para um ou todos os projetos indexados.
+    Completamente resiliente, multithreaded e retomável de onde parou.
+    """
+    projects_to_run = []
+    if all_projects:
+        projects_to_run = get_existing_projects()
+        if not projects_to_run:
+            console.print("[yellow]Nenhum banco de dados SQLite encontrado na pasta 'dbs/'.[/yellow]")
+            return
+    elif project_name:
+        projects_to_run = [project_name]
+    else:
+        console.print("[red]Nenhum projeto especificado.[/red]")
+        return
+
+    console.print(f"[bold blue]Iniciando cálculo de pHash ({len(projects_to_run)} projeto(s), {workers} threads, lotes de {batch_size})[/bold blue]")
+
+    for idx, proj in enumerate(projects_to_run, 1):
+        db_path = os.path.join(DBS_DIR, f"{proj}.sqlite")
+        if not os.path.exists(db_path):
+            console.print(f"[red]Erro:[/red] Banco '{db_path}' não encontrado.")
+            continue
+
+        console.print(f"\n[bold cyan][{idx}/{len(projects_to_run)}] Analisando banco do projeto '{proj}'...[/bold cyan]")
+        
+        try:
+            with Database(db_path) as db:
+                total_pending = db.get_pending_phash_count()
+                if total_pending == 0:
+                    total_files = db.get_total_files()
+                    console.print(f"[green]✓ Projeto '{proj}': Todos os hashes pHash já estão preenchidos! ({total_files:,} arquivos no banco)[/green]")
+                    continue
+
+                console.print(f"Encontradas [bold yellow]{total_pending:,}[/bold yellow] imagens pendentes de pHash.")
+                
+                with VerticalProgress(
+                    f"Calculando pHash: {proj}",
+                    total=total_pending,
+                    console=console
+                ) as progress:
+                    def on_progress(advance: int, current_file: str, success: int, errors: int):
+                        progress.update(
+                            advance=advance,
+                            current_file=current_file,
+                            extra_info=f"[green]{success:,} hashes[/green] | [red]{errors:,} erros[/red]"
+                        )
+
+                    stats = db.populate_phashes(
+                        max_workers=workers,
+                        batch_size=batch_size,
+                        progress_callback=on_progress
+                    )
+
+                console.print(f"[bold green]✓ Concluído projeto '{proj}':[/bold green] {stats['processed']:,} processados ({stats['success']:,} calculados, {stats['errors']:,} erros, {stats['remaining']:,} restantes).")
+
+        except KeyboardInterrupt:
+            console.print(f"\n[bold yellow]Operação pausada pelo usuário (Ctrl+C).[/bold yellow]")
+            console.print(f"[green]O progresso calculado até este momento foi gravado com segurança no banco SQLite '{proj}'.[/green]")
+            console.print("[cyan]Para continuar de onde parou, basta executar o comando novamente.[/cyan]\n")
+            return
+        except FileNotFoundError as fnf_err:
+            console.print(f"[bold red]Atenção:[/bold red] {fnf_err}")
+            if len(projects_to_run) > 1 and idx < len(projects_to_run):
+                if not Confirm.ask("Deseja pular este projeto e tentar o próximo?", default=True):
+                    return
+            else:
+                return
+        except Exception as e:
+            console.print(f"[bold red]Erro durante o cálculo de pHash para '{proj}':[/bold red] {e}")
+            if len(projects_to_run) > 1 and idx < len(projects_to_run):
+                if not Confirm.ask("Deseja pular este projeto e tentar o próximo?", default=True):
+                    return
+
+
 def get_existing_projects() -> List[str]:
     projects = []
     if os.path.exists(DBS_DIR):
@@ -343,11 +419,12 @@ def interactive_mode():
     console.print(" [bold yellow][4][/bold yellow] Comparar DOIS Bancos Diferentes entre si (Cross-DB)")
     console.print(" [bold yellow][5][/bold yellow] Gerar Relatório HTML de um Banco (Dashboard)")
     console.print(" [bold yellow][6][/bold yellow] Abrir Central de Ação de Duplicatas (WebApp Interativo)")
-    console.print(" [bold yellow][7][/bold yellow] Sair")
+    console.print(" [bold yellow][7][/bold yellow] Calcular Perceptual Hashes (pHash) em lote (Antecipar processamento)")
+    console.print(" [bold yellow][8][/bold yellow] Sair")
     
-    action = Prompt.ask("\nEscolha uma opção", choices=["1", "2", "3", "4", "5", "6", "7"], default="1")
+    action = Prompt.ask("\nEscolha uma opção", choices=["1", "2", "3", "4", "5", "6", "7", "8"], default="1")
     
-    if action == "7":
+    if action == "8":
         sys.exit(0)
         
     if action in ["1", "2"]:
@@ -399,6 +476,23 @@ def interactive_mode():
                 run_dedup_webapp(initial_safe=safe_p, initial_cand=cand_p, initial_deep=deep)
         else:
             run_dedup_webapp()
+    elif action == "7":
+        console.print("\n[bold cyan]--- Calcular Perceptual Hashes (pHash) em Lote ---[/bold cyan]")
+        console.print("[dim]Calcula previamente os hashes visuais de todas as fotos para acelerar as deduplicações futuras.[/dim]\n")
+        projects = get_existing_projects()
+        if not projects:
+            console.print("[yellow]Nenhum banco indexado encontrado.[/yellow]")
+            return
+            
+        console.print(" [bold yellow][1][/bold yellow] Todos os bancos de dados em lote")
+        console.print(" [bold yellow][2][/bold yellow] Escolher um banco de dados específico")
+        sub_choice = Prompt.ask("Escolha o modo", choices=["1", "2"], default="1")
+        
+        if sub_choice == "1":
+            run_compute_phash(all_projects=True)
+        else:
+            proj = ask_project("Escolha o projeto para calcular pHash", allow_new=False)
+            run_compute_phash(project_name=proj)
 
 def main():
     parser = argparse.ArgumentParser(description="Ferramenta de indexação e deduplicação de mídias.")
@@ -429,6 +523,14 @@ def main():
     webapp_parser.add_argument("--deep", action="store_true", help="Ativa comparação profunda no cruzamento de bancos")
     webapp_parser.add_argument("--port", type=int, default=8555, help="Porta HTTP do servidor local (padrão: 8555)")
 
+    # compute-phash command
+    phash_parser = subparsers.add_parser("compute-phash", help="Calcula perceptual hashes (pHash) em lote para fotos de um ou todos os bancos")
+    phash_group = phash_parser.add_mutually_exclusive_group(required=True)
+    phash_group.add_argument("--project", help="Nome do projeto específico (ex: gphotos-takeout)")
+    phash_group.add_argument("--all", action="store_true", help="Executa para todos os bancos SQLite existentes em dbs/")
+    phash_parser.add_argument("--workers", type=int, default=8, help="Número de threads simultâneas para cálculo (padrão: 8)")
+    phash_parser.add_argument("--batch-size", type=int, default=500, help="Tamanho do lote para commit no SQLite (padrão: 500)")
+
     args = parser.parse_args()
     
     try:
@@ -449,6 +551,8 @@ def main():
                 initial_internal=args.internal,
                 initial_deep=args.deep
             )
+        elif args.command == "compute-phash":
+            run_compute_phash(project_name=args.project, all_projects=args.all, workers=args.workers, batch_size=args.batch_size)
         elif not args.command:
             interactive_mode()
     except KeyboardInterrupt:

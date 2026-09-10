@@ -213,6 +213,92 @@
       gap: 6px;
     }
 
+    /* Toggle View */
+    .view-toggle {
+      display: flex;
+      background: #f1f5f9;
+      border-radius: 8px;
+      padding: 3px;
+      border: 1px solid var(--border);
+      margin-right: 8px;
+    }
+    .view-btn {
+      padding: 4px 12px;
+      font-size: 12px;
+      font-weight: 700;
+      border: none;
+      background: transparent;
+      border-radius: 6px;
+      color: var(--text-sub);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .view-btn.active {
+      background: #ffffff;
+      color: var(--primary);
+      box-shadow: var(--shadow-sm);
+    }
+    .view-btn:hover:not(.active) {
+      color: var(--text-main);
+    }
+    
+    /* Folders View */
+    .folders-container {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+      gap: 16px;
+      padding: 0 0 24px 0;
+    }
+    .folder-group-card {
+      background: #ffffff;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+      box-shadow: var(--shadow-sm);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .folder-group-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 12px;
+    }
+    .folder-path-box {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .folder-path-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      color: #334155;
+    }
+    .folder-stats {
+      text-align: right;
+    }
+    .folder-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 4px;
+      justify-content: flex-end;
+    }
+      font-weight: 700;
+      padding: 4px 10px;
+      border-radius: 20px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
     /* 2. Palco Principal 1-a-1 */
     main {
       flex: 1;
@@ -834,6 +920,11 @@
 
     <!-- Header Direita: Filtro Rápido e Contador de Marcados -->
     <div class="header-right">
+      <div class="view-toggle">
+        <button class="view-btn active" id="btnViewFiles" onclick="switchViewMode('files')">📄 Arquivos</button>
+        <button class="view-btn" id="btnViewFolders" onclick="switchViewMode('folders')">📁 Pastas</button>
+      </div>
+      <button class="btn-settings" id="btnClearFolderFilter" style="display:none; color: var(--cand); border-color: var(--cand-border); background: var(--cand-bg);" onclick="clearFolderFilter()">❌ Filtro Pasta</button>
       <select class="filter-select" id="filterDupType" onchange="applyFilters()" style="margin-right: 4px;">
         <option value="all" selected>Todas as Duplicatas</option>
         <option value="quality">Fotos Redimensionadas (Qualidade)</option>
@@ -971,6 +1062,11 @@
         </div>
       </div>
     </div>
+
+    <!-- Container de Agrupamento por Pastas -->
+    <div class="folders-container" id="foldersContainer" style="display: none;">
+      <!-- Preenchido via JS -->
+    </div>
   </main>
 
   <!-- 3. Rodapé Global com Atalhos e Ação em Lote -->
@@ -1102,6 +1198,10 @@
     let markedPaths = new Set();
     let currentSessionInfo = { safe_project: '', cand_project: '' };
 
+    let currentViewMode = 'files';
+    let folderGroups = [];
+    let currentFolderFilter = null;
+
     // Inicialização
     window.addEventListener('DOMContentLoaded', async () => {
       setupKeyboardShortcuts();
@@ -1196,6 +1296,10 @@
         items = items.filter(d => d.duplicate_type === 'quality_diff');
       } else if (dupFilter === 'exact') {
         items = items.filter(d => d.duplicate_type === 'exact');
+      }
+
+      if (currentFolderFilter) {
+        items = items.filter(d => d.safe_path.startsWith(currentFolderFilter.safe) && d.cand_path.startsWith(currentFolderFilter.cand));
       }
 
       filteredDuplicates = items;
@@ -1773,6 +1877,139 @@
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#039;');
+    }
+
+    // ==========================================
+    // VISÃO POR PASTAS E FILTROS
+    // ==========================================
+    function switchViewMode(mode) {
+      currentViewMode = mode;
+      document.getElementById('btnViewFiles').classList.toggle('active', mode === 'files');
+      document.getElementById('btnViewFolders').classList.toggle('active', mode === 'folders');
+      
+      if (mode === 'files') {
+        document.getElementById('stageContainer').style.display = ''; 
+        document.getElementById('foldersContainer').style.display = 'none';
+        
+        document.querySelector('.header-center').style.visibility = 'visible';
+        document.getElementById('filterDupType').style.display = 'inline-block';
+        document.getElementById('filterType').style.display = 'inline-block';
+        document.getElementById('statMarkedPill').style.display = 'flex';
+        document.querySelector('footer').style.display = 'flex';
+        
+        if (filteredDuplicates.length === 0) renderCurrentItem();
+      } else {
+        document.getElementById('stageContainer').style.display = 'none';
+        document.getElementById('foldersContainer').style.display = 'flex';
+        
+        document.querySelector('.header-center').style.visibility = 'hidden';
+        document.getElementById('filterDupType').style.display = 'none';
+        document.getElementById('filterType').style.display = 'none';
+        document.getElementById('statMarkedPill').style.display = 'none';
+        document.querySelector('footer').style.display = 'none';
+        
+        loadFolderDuplicates();
+      }
+    }
+
+    async function loadFolderDuplicates() {
+      const container = document.getElementById('foldersContainer');
+      container.innerHTML = '<div style="text-align:center; padding: 40px; color: #64748b;">Carregando agrupamentos de pastas...</div>';
+      try {
+        const res = await fetch('/api/duplicates/folders');
+        const data = await res.json();
+        folderGroups = data.groups || [];
+        renderFolderGroups();
+      } catch (err) {
+        container.innerHTML = `<div style="text-align:center; padding: 40px; color: #ef4444;">Erro ao carregar pastas: ${err.message}</div>`;
+      }
+    }
+
+    function renderFolderGroups() {
+      const container = document.getElementById('foldersContainer');
+      container.innerHTML = '';
+      if (folderGroups.length === 0) {
+        container.innerHTML = '<div style="text-align:center; padding: 40px; color: #64748b;">Nenhuma duplicata encontrada em pastas.</div>';
+        return;
+      }
+      
+      folderGroups.forEach((group, index) => {
+        const div = document.createElement('div');
+        div.className = 'folder-group-card';
+        div.innerHTML = `
+          <div class="folder-group-header">
+            <div class="folder-path-box">
+              <div class="folder-path-row"><span style="color:#059669; font-weight:700;">🛡️ Origem Segura:</span> ${escapeHtml(group.safe_path)}</div>
+              <div class="folder-path-row"><span style="color:#dc2626; font-weight:700;">🗑️ Pasta Candidata:</span> ${escapeHtml(group.cand_path)}</div>
+            </div>
+            <div class="folder-stats">
+              <div style="font-size: 18px; font-weight: 800; color: #0f172a;">${group.duplicates_count} arquivos</div>
+              <div style="font-size: 14px; font-weight: 600; color: #dc2626;">${formatBytes(group.wasted_bytes)} desperdiçados</div>
+            </div>
+          </div>
+          <div class="folder-actions">
+            <button class="btn-os-action" onclick="reviewFolderPair(${index})">👀 Revisar Lado a Lado</button>
+            <button class="btn-delete-confirmed" onclick="deleteAllInFolder(${index})">🗑️ Excluir Todos os ${group.duplicates_count} Candidatos Desta Pasta</button>
+          </div>
+        `;
+        container.appendChild(div);
+      });
+    }
+
+    function reviewFolderPair(index) {
+      const group = folderGroups[index];
+      currentFolderFilter = { safe: group.safe_path, cand: group.cand_path };
+      document.getElementById('btnClearFolderFilter').style.display = 'inline-flex';
+      
+      applyFilters();
+      switchViewMode('files');
+    }
+
+    function clearFolderFilter() {
+      currentFolderFilter = null;
+      document.getElementById('btnClearFolderFilter').style.display = 'none';
+      applyFilters();
+    }
+
+    async function deleteAllInFolder(index) {
+      const group = folderGroups[index];
+      if (!confirm(`Tem certeza que deseja mover TODOS os ${group.duplicates_count} arquivos candidatos na pasta:\n\n${group.cand_path}\n\npara a Lixeira?`)) return;
+      
+      const pathsToDelete = allDuplicates
+        .filter(d => d.cand_path.startsWith(group.cand_path) && d.safe_path.startsWith(group.safe_path))
+        .map(d => d.cand_path);
+        
+      if (pathsToDelete.length === 0) {
+        alert("Nenhum arquivo correspondente encontrado localmente para deletar. Tente recarregar a sessão.");
+        return;
+      }
+      
+      try {
+        const res = await fetch('/api/delete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ paths: pathsToDelete })
+        });
+        const data = await res.json();
+        
+        if (data.success) {
+          alert(`Sucesso! ${data.deleted_count} arquivos foram movidos para a Lixeira.\nEspaço recuperado: ${data.freed_human}`);
+          const deletedSet = new Set(pathsToDelete);
+          allDuplicates = allDuplicates.filter(d => !deletedSet.has(d.cand_path));
+          
+          if (currentFolderFilter && currentFolderFilter.cand === group.cand_path) {
+            clearFolderFilter();
+          } else {
+            applyFilters();
+          }
+          
+          loadFolderDuplicates();
+        } else {
+          alert('Erro ao excluir arquivos: ' + (data.error || 'Falha desconhecida'));
+        }
+      } catch (err) {
+        alert('Erro ao comunicar com o servidor.');
+      }
     }
   </script>
 </body>
