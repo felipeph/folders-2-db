@@ -1939,17 +1939,17 @@
         div.innerHTML = `
           <div class="folder-group-header">
             <div class="folder-path-box">
-              <div class="folder-path-row"><span style="color:#059669; font-weight:700;">🛡️ Origem Segura:</span> ${escapeHtml(group.safe_path)}</div>
-              <div class="folder-path-row"><span style="color:#dc2626; font-weight:700;">🗑️ Pasta Candidata:</span> ${escapeHtml(group.cand_path)}</div>
+              <div class="folder-path-row"><span style="color:#059669; font-weight:700;">🛡️ Origem Segura:</span> ${escapeHtml(group.safe_folder)}</div>
+              <div class="folder-path-row"><span style="color:#dc2626; font-weight:700;">🗑️ Pasta Candidata:</span> ${escapeHtml(group.cand_folder)}</div>
             </div>
             <div class="folder-stats">
-              <div style="font-size: 18px; font-weight: 800; color: #0f172a;">${group.duplicates_count} arquivos</div>
+              <div style="font-size: 18px; font-weight: 800; color: #0f172a;">${group.file_count} arquivos</div>
               <div style="font-size: 14px; font-weight: 600; color: #dc2626;">${formatBytes(group.wasted_bytes)} desperdiçados</div>
             </div>
           </div>
           <div class="folder-actions">
             <button class="btn-os-action" onclick="reviewFolderPair(${index})">👀 Revisar Lado a Lado</button>
-            <button class="btn-delete-confirmed" onclick="deleteAllInFolder(${index})">🗑️ Excluir Todos os ${group.duplicates_count} Candidatos Desta Pasta</button>
+            <button class="btn-delete-confirmed" onclick="deleteAllInFolder(${index})">🗑️ Excluir Todos os ${group.file_count} Candidatos Desta Pasta</button>
           </div>
         `;
         container.appendChild(div);
@@ -1958,7 +1958,7 @@
 
     function reviewFolderPair(index) {
       const group = folderGroups[index];
-      currentFolderFilter = { safe: group.safe_path, cand: group.cand_path };
+      currentFolderFilter = { safe: group.safe_folder, cand: group.cand_folder };
       document.getElementById('btnClearFolderFilter').style.display = 'inline-flex';
       
       applyFilters();
@@ -1973,10 +1973,10 @@
 
     async function deleteAllInFolder(index) {
       const group = folderGroups[index];
-      if (!confirm(`Tem certeza que deseja mover TODOS os ${group.duplicates_count} arquivos candidatos na pasta:\n\n${group.cand_path}\n\npara a Lixeira?`)) return;
+      if (!confirm(`Tem certeza que deseja mover TODOS os ${group.file_count} arquivos candidatos na pasta:\n\n${group.cand_folder}\n\npara a Lixeira?`)) return;
       
       const pathsToDelete = allDuplicates
-        .filter(d => d.cand_path.startsWith(group.cand_path) && d.safe_path.startsWith(group.safe_path))
+        .filter(d => d.cand_path.startsWith(group.cand_folder) && d.safe_path.startsWith(group.safe_folder))
         .map(d => d.cand_path);
         
       if (pathsToDelete.length === 0) {
@@ -1997,7 +1997,7 @@
           const deletedSet = new Set(pathsToDelete);
           allDuplicates = allDuplicates.filter(d => !deletedSet.has(d.cand_path));
           
-          if (currentFolderFilter && currentFolderFilter.cand === group.cand_path) {
+          if (currentFolderFilter && currentFolderFilter.cand === group.cand_folder) {
             clearFolderFilter();
           } else {
             applyFilters();
